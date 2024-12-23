@@ -1,0 +1,17 @@
+opt_in_rules: 
+  - empty_count
+  - first_where
+
+included:
+  - Source
+
+excluded:
+  - Carthage
+  - Pods
+  - Source/ExcludedFolder
+
+line_length:
+  warning: 120
+  error: 150
+  ignores_comments: true
+  ignores_urls: true
