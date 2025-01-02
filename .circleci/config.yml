@@ -1,14 +1,14 @@
 version: 2.1
 
-executors:
-  ios-executor:
-    macos:
-      xcode: "16.0.0"
+orbs:
+  macos: circleci/macos@2.5.2 
 
 jobs:
   build-and-test:
-    executor: ios-executor
+    macos:
+      xcode: 16.0
     steps:
+      - macos/install-rosetta
       - checkout
       - run:
           name: Install Dependencies
@@ -21,25 +21,12 @@ jobs:
           name: Run SwiftFormat
           command: make format
       - run:
-          name: Install xcbeautify
-          command: brew install xcbeautify
-      - run:
-          name: Build
+          name: Execute test and coverage
           command: |
-            xcodebuild -scheme MercadoPagoSDK-iOS \
-              -sdk iphonesimulator \
-              -destination 'platform=iOS Simulator,name=iPhone 16' \
-              build | xcbeautify
-
-      - run:
-          name: Test
-          command: |
-            xcodebuild -scheme MercadoPagoSDK-iOS \
-              -sdk iphonesimulator \
-              -destination 'platform=iOS Simulator,name=iPhone 16' \
-              clean test | xcbeautify
-
-
+            bundle exec fastlane test
+      - store_artifacts:
+          path: fastlane/xcov_output
+          destination: code-coverage
 workflows:
   version: 2
   build-test:
