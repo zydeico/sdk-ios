@@ -25,9 +25,16 @@ let package = Package(
         .target(
             name: "CoreMethods"
         ),
+        .target(
+            name: "MPAnalytics"
+        ),
         .testTarget(
             name: "CoreMethodsTests",
             dependencies: ["CoreMethods"]
+        ),
+        .testTarget(
+            name: "AnalyticsTests",
+            dependencies: ["MPAnalytics"]
         ),
         .testTarget(
             name: "SnapshotTests",
