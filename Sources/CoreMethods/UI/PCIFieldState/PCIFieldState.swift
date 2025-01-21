@@ -32,8 +32,8 @@ final class PCIFieldState: UIView {
     private(set) var isValid = false
 
     private var maxLength: Int
-    private let validation: InputValidation
-    private let formatter: Configuration.Mask?
+    private var validation: InputValidation
+    private var formatter: Configuration.Mask?
     private var style: Style
 
     // MARK: - Callbacks
@@ -183,10 +183,10 @@ private extension PCIFieldState {
         let numbersOnly = text?.onlyNumbers() ?? ""
         self.count = numbersOnly.count
 
+        self.isValid = self.validation.isValid(numbersOnly)
         self.onChange?(numbersOnly)
 
-        if numbersOnly.count == self.maxLength {
-            self.isValid = self.validation.isValid(numbersOnly)
+        if self.isValid {
             self.onComplete?()
         } else {
             self.isValid = false
@@ -213,6 +213,15 @@ extension PCIFieldState {
     func setRightView(_ view: UIView?, mode: UITextField.ViewMode) {
         self.textField.rightView = view
         self.textField.rightViewMode = mode
+    }
+
+    /// Updates the mask pattern used for formatting the card number.
+    /// - Note: Automatically reformats existing input to match the new pattern
+    /// - Parameters:
+    ///   - pattern: The new mask pattern where '#' represents a digit
+    ///   - separator: The character used to separate digit groups
+    func setMask(with formatter: Configuration.Mask) {
+        self.formatter = formatter
     }
 }
 
