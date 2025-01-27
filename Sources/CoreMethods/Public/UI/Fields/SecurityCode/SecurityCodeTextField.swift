@@ -1,5 +1,5 @@
 //
-//  CardNumberTextField.swift
+//  SecurityCodeTextField.swift
 //  BricksSDKTest
 //
 //  Created by Guilherme Prata Costa on 14/11/24.
@@ -8,36 +8,37 @@
 import MPCore
 import UIKit
 
-/// A secure text field specialized for handling credit card numbers.
-/// The field automatically formats card numbers with proper spacing and validates input in real-time.
+/// A secure text field specialized for handling security code of the card.
+/// The field automatically formats numbers with proper spacing and validates input in real-time.
 /// For security compliance, raw card data is handled internally through secure components.
 ///
 /// Example usage:
 /// ```swift
-/// let field = CardNumberTextField(style: style)
-///    .setMaxLength(19)
-///    .setMask(pattern: "#### ##### ####")
+/// let field = SecurityCodeTextField(style: style)
+///    .setMaxLength(4)
+///    .setPlaceholder("Insert security code")
 ///
-/// cardField.onBinChanged = { [weak self] bin in
-///     // Handle BIN changes
+/// field.onLengthChanged = { [weak self] bin in
+///     // Handle length changes
 /// }
-/// cardField.onError = { [weak self] error in
+/// field.onError = { [weak self] error in
 ///     // Handle validation errors
 /// }
+/// field.onInputFilled = { [weak self] error in
+///     // Handle complete field
+/// }
 /// ```
-public final class CardNumberTextField: UIView {
+public final class SecurityCodeTextField: UIView {
     public typealias Style = PCIFieldStateStyleProtocol
 
     public var style: Style
 
-    /// Callback triggered when the BIN (Bank Identification Number) changes.
-    /// - Note: BIN consists of the first 8 digits of the card number.
-    /// - Parameter bin: The current BIN value
-    public var onBinChanged: ((String) -> Void)?
+    /// Callback triggered when the length of security change
+    /// - Parameter length: Length of security code
+    public var onLengthChanged: ((Int) -> Void)?
 
-    /// Callback triggered when a valid card number is completed.
-    /// - Parameter lastFour: The last four digits of the validated card number
-    public var onLastFourDigitsFilled: ((String) -> Void)?
+    /// Callback triggered when a valid security code is completed.
+    public var onInputFilled: (() -> Void)?
 
     /// Callback triggered when the field focus state changes.
     /// - Parameter isFocused: True when field gains focus, false when it loses focus
@@ -50,7 +51,7 @@ public final class CardNumberTextField: UIView {
     /// * When the field loses focus and contains an invalid card number.
     /// * When the maximum length is reached but validation fails.
     /// - Parameter error: The type of validation error that occurred
-    public var onError: ((CardNumberError) -> Void)?
+    public var onError: ((SecurityCodeError) -> Void)?
 
     /// Returns whether the current input represents a valid card number.
     public var isValid: Bool {
@@ -76,9 +77,7 @@ public final class CardNumberTextField: UIView {
         set { self.input.keyboardAppearance = newValue }
     }
 
-    private let validation: CardNumberValidation
-
-    private let binLength = 8
+    private let validation: SecurityCodeValidation
 
     let input: PCIFieldState
 
@@ -86,19 +85,16 @@ public final class CardNumberTextField: UIView {
 
     public init(
         style: Style = TextFieldDefaultStyle(),
-        maxLength: Int = 19,
-        mask: String = "#### #### #### #######"
+        maxLength: Int = 3
     ) {
         self.style = style
-        self.validation = CardNumberValidation(maxLength: maxLength)
+        self.validation = SecurityCodeValidation(maxLength: maxLength)
+
         let configuration = PCIFieldState.Configuration(
             maxLength: maxLength,
             validation: self.validation,
             style: style,
-            mask: PCIFieldState.Configuration.Mask(
-                pattern: mask,
-                separator: " "
-            )
+            mask: nil
         )
         self.input = PCIFieldState(configuration: configuration)
         self.input.setStyle(style)
@@ -115,27 +111,15 @@ public final class CardNumberTextField: UIView {
     // MARK: - Private Methods
 
     private func setupCallbacks() {
-        self.input.onChange = { [weak self] text in
+        self.input.onChange = { [weak self] _ in
             guard let self else { return }
-
-            if self.count >= self.binLength || text.isEmpty {
-                self.onBinChanged?(self.getBin(text))
-            }
-
-            if self.count == self.validation.maxLength, !self.isValid {
-                self.onError?(self.validation.error)
-            }
+            self.onLengthChanged?(self.count)
         }
 
         self.input.onComplete = { [weak self] in
             guard let self else { return }
 
-            let error = self.validation.error
-            if self.isValid {
-                self.onLastFourDigitsFilled?(self.getLastFourDigits())
-            } else {
-                self.onError?(error)
-            }
+            self.onInputFilled?()
         }
 
         self.input.onFocusChange = { [weak self] focus in
@@ -148,19 +132,11 @@ public final class CardNumberTextField: UIView {
             self.onFocusChanged?(focus)
         }
     }
-
-    func getLastFourDigits() -> String {
-        return String(self.input.getValue().suffix(4))
-    }
-
-    func getBin(_ text: String) -> String {
-        return String(text.prefix(self.binLength))
-    }
 }
 
 // MARK: - ViewConfiguration Extensions
 
-extension CardNumberTextField: ViewConfiguration {
+extension SecurityCodeTextField: ViewConfiguration {
     package func buildViewHierarchy() {
         addSubview(self.input)
     }
@@ -190,7 +166,7 @@ extension CardNumberTextField: ViewConfiguration {
 
 // MARK: - Public Methods
 
-extension CardNumberTextField {
+extension SecurityCodeTextField {
     /// Sets the visual style of the text field.
     /// - Parameter style: The style configuration to be applied
     /// - Returns: Self for method chaining
@@ -219,23 +195,6 @@ extension CardNumberTextField {
     @discardableResult
     public func setPlaceholder(_ text: String) -> Self {
         self.input.setPlaceholder(text)
-        return self
-    }
-
-    /// Updates the mask pattern used for formatting the card number.
-    /// - Parameters:
-    ///   - pattern: The new mask pattern where '#' represents a digit
-    ///   - separator: The character used to separate digit groups
-    /// - Returns: Self for method chaining
-    @discardableResult
-    public func setMask(pattern: String, separator: Character = " ") -> Self {
-        self.input
-            .setMask(
-                with: PCIFieldState.Configuration.Mask(
-                    pattern: pattern,
-                    separator: separator
-                )
-            )
         return self
     }
 

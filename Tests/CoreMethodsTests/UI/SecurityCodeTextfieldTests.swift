@@ -1,28 +1,28 @@
 //
-//  CardNumberTextFieldTests.swift
+//  SecurityCodeTextfieldTests.swift
 //  MercadoPagoSDK-iOS
 //
-//  Created by Guilherme Prata Costa on 20/01/25.
+//  Created by Guilherme Prata Costa on 21/01/25.
 //
 
 @testable import CoreMethods
 import XCTest
 
 @MainActor
-final class CardNumberTextFieldTests: XCTestCase {
+final class SecurityCodeTextFieldTests: XCTestCase {
     private typealias SUT = (
-        sut: CardNumberTextField,
+        sut: SecurityCodeTextField,
         input: PCIFieldState
     )
 
     // MARK: - Factory Methods
 
     private func makeSUT(
-        maxLength: Int = 19,
+        maxLength: Int = 3,
         file _: StaticString = #filePath,
         line _: UInt = #line
     ) -> SUT {
-        let sut = CardNumberTextField(maxLength: maxLength)
+        let sut = SecurityCodeTextField(maxLength: maxLength)
         return (sut, sut.input)
     }
 
@@ -37,130 +37,60 @@ final class CardNumberTextFieldTests: XCTestCase {
         XCTAssertFalse(sut.isValid)
     }
 
-    // MARK: - BIN Detection Tests
+    // MARK: - onInputFilled Tests
 
-    func test_onBinChanged_shouldTriggerWhenFirst8DigitsEntered() {
+    func test_onInputFilled_shouldTriggerWhenFieldValid() async {
         let (sut, input) = self.makeSUT()
-        var capturedBin: String?
-        sut.onBinChanged = { bin in
-            capturedBin = bin
+        let expectation = expectation(description: "onInputFilled called")
+
+        sut.onInputFilled = {
+            expectation.fulfill()
         }
 
-        simulateTextInput("41111111", input: input)
+        simulateTextInput("123", input: input)
 
-        XCTAssertEqual(capturedBin, "41111111")
-    }
-
-    func test_onBinChanged_shouldTriggerWithLessThan8Digits() {
-        let (sut, input) = self.makeSUT()
-        var binChangeCount = 0
-        sut.onBinChanged = { _ in
-            binChangeCount += 1
-        }
-
-        simulateTextInput("411111133", input: input)
-
-        XCTAssertEqual(binChangeCount, 2)
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 
     // MARK: - Last Four Digits Tests
 
-    func test_onLastFourDigitsFilled_shouldTriggerWhenValidNumberCompleted() {
+    func test_onLengthChanged_shouldTriggerWhenValidNumberCompleted() {
         let (sut, input) = self.makeSUT()
-        var capturedLastFour: String?
-        sut.onLastFourDigitsFilled = { lastFour in
-            capturedLastFour = lastFour
+        var capturedLength: Int?
+        sut.onLengthChanged = { length in
+            capturedLength = length
         }
 
-        simulateTextInput("4111111111114321", input: input)
+        simulateTextInput("123", input: input)
 
-        XCTAssertEqual(capturedLastFour, "4321")
+        XCTAssertEqual(capturedLength, 3)
     }
 
-    func test_onLastFourDigitsFilled_shouldValidateLuhn() {
+    func test_onLengthChanged_shouldTriggerWhenDigitNumberInField() {
         let (sut, input) = self.makeSUT()
-        var capturedLastFour: String?
-        sut.onLastFourDigitsFilled = { lastFour in
-            capturedLastFour = lastFour
+        var currentLength = 0
+        sut.onLengthChanged = { length in
+            currentLength = length
         }
 
-        simulateTextInput("5181163347419299", input: input)
+        simulateTextInput("123", input: input)
 
-        XCTAssertEqual(capturedLastFour, "9299")
-        XCTAssertTrue(sut.isValid)
-    }
-
-    // MARK: - Luhn Validation Tests
-
-    func test_onLastFourDigitsFilled_When19Digits_shouldValidateLuhn() async {
-        let (sut, input) = self.makeSUT()
-
-        var capturedLastFour: String?
-        sut.onLastFourDigitsFilled = { lastFour in
-            capturedLastFour = lastFour
-        }
-        simulateTextInput("5993199916395529539", input: input)
-
-        XCTAssertEqual(capturedLastFour, "9539")
-        XCTAssertTrue(sut.isValid)
-    }
-
-    func test_onLastFourDigitsFilled_When15Digitis_shouldValidateLuhn() {
-        let (sut, input) = self.makeSUT(maxLength: 15)
-
-        sut.setMask(pattern: "#### ###### #####")
-
-        var capturedLastFour: String?
-        sut.onLastFourDigitsFilled = { lastFour in
-            capturedLastFour = lastFour
-        }
-
-        simulateTextInput("341369256028272", input: input)
-
-        XCTAssertEqual(capturedLastFour, "8272")
-        XCTAssertTrue(sut.isValid)
+        XCTAssertEqual(currentLength, 3)
     }
 
     // MARK: - Error Handling Tests
 
-    func test_onError_shouldTriggerWithInvalidLuhn() {
-        let (sut, input) = self.makeSUT()
-        var capturedError: CardNumberError?
-        sut.onError = { error in
-            capturedError = error
-        }
-
-        simulateTextInput("4111111111111112", input: input)
-        input.onFocusChange?(false)
-
-        XCTAssertEqual(capturedError, .invalidLuhn)
-    }
-
     func test_onError_shouldTriggerWithInvalidLength() {
         let (sut, input) = self.makeSUT()
-        var capturedError: CardNumberError?
+        var capturedError: SecurityCodeError?
         sut.onError = { error in
             capturedError = error
         }
 
-        simulateTextInput("41111", input: input)
+        simulateTextInput("12", input: input)
         input.onFocusChange?(false)
 
         XCTAssertEqual(capturedError, .invalidLength)
-    }
-
-    func test_onError_When19Digits_shouldNotValidateLuhn() async {
-        let (sut, input) = self.makeSUT()
-
-        var capturedError: CardNumberError?
-        sut.onError = { error in
-            capturedError = error
-        }
-
-        simulateTextInput("5993199916395529", input: input)
-        input.onFocusChange?(false)
-
-        XCTAssertEqual(capturedError, .invalidLuhn)
     }
 
     // MARK: - Focus Tests
@@ -255,7 +185,7 @@ final class CardNumberTextFieldTests: XCTestCase {
 
 // MARK: - Helpers
 
-private extension CardNumberTextFieldTests {
+private extension SecurityCodeTextFieldTests {
     func simulateTextInput(_ text: String, input: PCIFieldState) {
         for char in text {
             let range = NSRange(location: input.textField.text?.count ?? 0, length: 0)

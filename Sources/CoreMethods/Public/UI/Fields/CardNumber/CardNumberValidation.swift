@@ -10,19 +10,34 @@ public enum CardNumberError {
 }
 
 class CardNumberValidation: InputValidation {
-    var error: CardNumberError = .empty
+    var error: CardNumberError
 
-    var maxLength = 16
+    var maxLength: Int
+
+    enum Constant {
+        static let minLength = 8
+    }
+
+    init(error: CardNumberError = .empty, maxLength: Int) {
+        self.error = error
+        self.maxLength = maxLength
+    }
 
     func isValid(_ text: String) -> Bool {
         let cleanNumber = text.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
 
-        guard cleanNumber.count >= 13, cleanNumber.count <= self.maxLength else {
+        guard cleanNumber.count >= Constant.minLength, cleanNumber.count <= self.maxLength else {
             self.error = .invalidLength
             return false
         }
 
-        return self.isValidLuhn(cleanNumber)
+        if self.isValidLuhn(cleanNumber) {
+            self.error = .none
+            return true
+        } else {
+            self.error = .invalidLuhn
+            return false
+        }
     }
 
     private func isValidLuhn(_ number: String) -> Bool {
@@ -31,6 +46,7 @@ class CardNumberValidation: InputValidation {
             return false
         }
         var sum = 0
+
         let digitStrings = number.reversed().map { String($0) }
 
         for tuple in digitStrings.enumerated() {
@@ -51,15 +67,6 @@ class CardNumberValidation: InputValidation {
             }
         }
 
-        guard sum % 10 == 0 else {
-            self.error = .invalidLuhn
-            return false
-        }
-
-        self.error = .none
-
-        return true
+        return sum % 10 == 0
     }
 }
-
-protocol CardNumberTextFieldInterface {}

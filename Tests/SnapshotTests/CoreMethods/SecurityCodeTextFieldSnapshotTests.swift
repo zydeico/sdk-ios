@@ -1,8 +1,8 @@
 //
-//  CardNumberTextFiedSnapshotTests.swift
+//  SecurityCodeTextFieldSnapshotTests.swift
 //  MercadoPagoSDK-iOS
 //
-//  Created by Guilherme Prata Costa on 17/01/25.
+//  Created by Guilherme Prata Costa on 21/01/25.
 //
 
 @testable import CoreMethods
@@ -10,9 +10,9 @@ import SnapshotTesting
 import XCTest
 
 @MainActor
-final class CardNumberTextFieldSnapshotTests: XCTestCase {
+final class SecurityCodeTextFieldSnapshotTests: XCTestCase {
     private typealias SUT = (
-        sut: CardNumberTextField,
+        sut: SecurityCodeTextField,
         input: PCIFieldState
     )
 
@@ -23,10 +23,10 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
         file _: StaticString = #filePath,
         line _: UInt = #line
     ) -> SUT {
-        let sut = CardNumberTextField(style: style)
+        let sut = SecurityCodeTextField(style: style)
         sut.frame = CGRect(x: 0, y: 0, width: 300, height: 56)
         sut.backgroundColor = .white
-        sut.setPlaceholder("Card number")
+        sut.setPlaceholder("Insert security code")
 
         return (sut, sut.input)
     }
@@ -88,24 +88,24 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
     func test_partiallyFilledAppearance() {
         let (sut, input) = self.makeSUT()
 
-        simulateTextInput("4111", input: input)
+        simulateTextInput("1", input: input)
 
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_partially_filled"
+            named: "security_field_partially_filled"
         )
     }
 
     func test_completelyFilledAppearance() {
         let (sut, input) = self.makeSUT()
 
-        simulateTextInput("4111111111111111", input: input)
+        simulateTextInput("123", input: input)
 
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_completely_filled"
+            named: "security_field_completely_filled"
         )
     }
 
@@ -115,24 +115,24 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
         let (sut, input) = self.makeSUT()
         sut.setMaxLength(4)
 
-        simulateTextInput("4111111111111111", input: input)
+        simulateTextInput("1234", input: input)
 
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_max_length_four"
+            named: "security_field_max_length_four"
         )
     }
 
     func test_errorStateAppearance() async {
-        let (sut, _) = self.makeSUT(style: self.makeCustomStyle())
+        let (sut, input) = self.makeSUT(style: self.makeCustomStyle())
 
         sut.setStyle(self.makeErrorCustomStyle())
 
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_error_state"
+            named: "security_field_error_state"
         )
     }
 
@@ -144,7 +144,7 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_disabled"
+            named: "security_field_disabled"
         )
     }
 
@@ -162,7 +162,7 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_left_icon"
+            named: "security_field_left_icon"
         )
     }
 
@@ -178,54 +178,14 @@ final class CardNumberTextFieldSnapshotTests: XCTestCase {
         assertSnapshot(
             of: sut,
             as: .image(size: sut.frame.size),
-            named: "card_field_right_icon"
-        )
-    }
-
-    // MARK: - Masks
-
-    func test_customMask() {
-        let (sut, input) = self.makeSUT()
-        sut.setMaxLength(15)
-        sut.setMask(pattern: "#### ###### #####")
-
-        simulateTextInput("341369256028272", input: input)
-
-        assertSnapshot(
-            of: sut,
-            as: .image(size: sut.frame.size),
-            named: "card_field_mask_america_express_max_length_15"
-        )
-    }
-
-    func test_with19Digits() {
-        let (sut, input) = self.makeSUT()
-
-        simulateTextInput("5993199916395529539", input: input)
-
-        assertSnapshot(
-            of: sut,
-            as: .image(size: sut.frame.size),
-            named: "card_field"
-        )
-    }
-
-    func test_with16Digits() {
-        let (sut, input) = self.makeSUT()
-
-        simulateTextInput("5993199916395529", input: input)
-
-        assertSnapshot(
-            of: sut,
-            as: .image(size: sut.frame.size),
-            named: "card_field"
+            named: "security_field_right_icon"
         )
     }
 }
 
 // MARK: - Helpers
 
-private extension CardNumberTextFieldSnapshotTests {
+private extension SecurityCodeTextFieldSnapshotTests {
     func simulateTextInput(_ text: String, input: PCIFieldState) {
         for char in text {
             let range = NSRange(location: input.textField.text?.count ?? 0, length: 0)
