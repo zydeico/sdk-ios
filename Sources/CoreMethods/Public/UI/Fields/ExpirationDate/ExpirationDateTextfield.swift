@@ -1,22 +1,21 @@
 //
-//  SecurityCodeTextField.swift
-//  BricksSDKTest
+//  ExpirationDateTextfield.swift
+//  MercadoPagoSDK-iOS
 //
-//  Created by Guilherme Prata Costa on 14/11/24.
+//  Created by Guilherme Prata Costa on 27/01/25.
 //
 
 import MPCore
 import UIKit
 
-/// A secure text field specialized for handling security code of the card.
+/// A secure text field specialized for handling expiration date of the card.
 /// The field automatically formats numbers with proper spacing and validates input in real-time.
 /// For security compliance, raw card data is handled internally through secure components.
 ///
 /// Example usage:
 /// ```swift
-/// let field = SecurityCodeTextField(style: style)
-///    .setMaxLength(4)
-///    .setPlaceholder("Insert security code")
+/// let field = ExpirationDateTextfield(style: style)
+///    .setPlaceholder("Insert date")
 ///
 /// field.onLengthChanged = { [weak self] bin in
 ///     // Handle length changes
@@ -28,12 +27,27 @@ import UIKit
 ///     // Handle complete field
 /// }
 /// ```
-public final class SecurityCodeTextField: PCITextField {
-    /// Callback triggered when the length of security change
+///
+public final class ExpirationDateTextfield: PCITextField {
+    public enum Format: String {
+        case short = "## ##"
+        case long = "## ####"
+
+        func getMaxLength() -> Int {
+            switch self {
+            case .short:
+                return 4
+            case .long:
+                return 6
+            }
+        }
+    }
+
+    /// Callback triggered when the length of input change
     /// - Parameter length: Length of security code
     public var onLengthChanged: ((Int) -> Void)?
 
-    /// Callback triggered when a valid security code is completed.
+    /// Callback triggered when a valid date is completed.
     public var onInputFilled: (() -> Void)?
 
     /// Callback triggered when the field focus state changes.
@@ -44,35 +58,42 @@ public final class SecurityCodeTextField: PCITextField {
     /// Callback triggered when a validation error occurs.
     ///
     /// # This callback is triggered in two scenarios
-    /// * When the field loses focus and contains an invalid card number.
+    /// * When the field loses focus and contains an invalid date.
     /// * When the maximum length is reached but validation fails.
     /// - Parameter error: The type of validation error that occurred
-    public var onError: ((SecurityCodeError) -> Void)?
+    public var onError: ((ExpirationDateError) -> Void)?
 
-    private let validation: SecurityCodeValidation
+    private let validation: ExpirationDateValidation
+
+    private var format: Format = .short
 
     // MARK: - Initialization
 
     public init(
-        style: Style = TextFieldDefaultStyle(),
-        maxLength: Int = 3
+        style: Style = TextFieldDefaultStyle()
     ) {
-        self.validation = SecurityCodeValidation(maxLength: maxLength)
+        self.validation = ExpirationDateValidation()
+
         let configuration = PCIFieldState.Configuration(
-            maxLength: maxLength,
+            maxLength: self.format.getMaxLength(),
             validation: self.validation,
             style: style,
-            mask: nil
+            mask: PCIFieldState.Configuration.Mask(
+                pattern: self.format.rawValue,
+                separator: "/"
+            )
         )
-
         var contentType: UITextContentType?
 
         if #available(iOS 17.0, *) {
-            contentType = .creditCardSecurityCode
+            contentType = .creditCardExpiration
         }
 
-        super.init(style: style, configuration: configuration, contentType: contentType)
-        buildLayout()
+        super.init(
+            style: style,
+            configuration: configuration,
+            contentType: contentType
+        )
         self.setupCallbacks()
     }
 
@@ -87,6 +108,11 @@ public final class SecurityCodeTextField: PCITextField {
         self.input.onChange = { [weak self] _ in
             guard let self else { return }
             self.onLengthChanged?(self.count)
+
+            if self.count == self.format.getMaxLength(), !self.isValid {
+                let error = self.validation.error
+                self.onError?(error)
+            }
         }
 
         self.input.onComplete = { [weak self] in
@@ -98,8 +124,9 @@ public final class SecurityCodeTextField: PCITextField {
         self.input.onFocusChange = { [weak self] focus in
             guard let self else { return }
 
-            let error = self.validation.error
             if !self.isValid, !focus {
+                let error = self.validation.error
+
                 self.onError?(error)
             }
             self.onFocusChanged?(focus)
@@ -109,14 +136,20 @@ public final class SecurityCodeTextField: PCITextField {
 
 // MARK: - Public Methods
 
-extension SecurityCodeTextField {
-    /// Sets the maximum length of the card number
-    /// - Parameter length: The maximum number of digits allowed
+extension ExpirationDateTextfield {
+    /// Sets the format of expiration date
+    /// - Parameter format: Type of format (short or long)
     /// - Returns: Self for method chaining
     @discardableResult
-    public func setMaxLength(_ length: Int) -> Self {
-        self.input.setMaxLenght(length)
-        self.validation.maxLength = length
+    public func setFormat(_ format: ExpirationDateTextfield.Format) -> Self {
+        self.format = format
+        self.input.setMaxLenght(format.getMaxLength())
+        self.input.setMask(
+            with: PCIFieldState.Configuration.Mask(
+                pattern: format.rawValue,
+                separator: "/"
+            )
+        )
         return self
     }
 }
