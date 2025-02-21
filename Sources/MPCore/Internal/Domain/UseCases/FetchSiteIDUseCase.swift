@@ -50,7 +50,6 @@ final class FetchSiteIDUseCase: FetchSiteIDUseCaseProtocol {
         } catch _ as APIClientError {
             if self.currentRetry < self.maxRetry {
                 self.currentRetry += 1
-
                 return await self.getSiteID(with: publicKey, and: country)
             }
 

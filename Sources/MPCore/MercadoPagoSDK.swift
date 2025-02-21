@@ -64,7 +64,7 @@ public final class MercadoPagoSDK: @unchecked Sendable {
         self.configuration = configuration
         self.isInitialized = true
 
-        self.analyticsMonitoringTask = Task(priority: .background) {
+        self.analyticsMonitoringTask = Task(priority: .background) {          
             await self.dependencies.analytics.initialize(
                 version: MPSDKVersion.version,
                 siteID: configuration.country.getSiteId()

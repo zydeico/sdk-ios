@@ -140,6 +140,7 @@ extension FetchSiteIDUseCaseTests {
 
         let firstCallResult = await sut.getSiteID(with: publicKey, and: .ARG)
         let secondCallResult = await sut.getSiteID(with: publicKey, and: .ARG)
+
         let messages = await keyChain.mock.getMessages()
 
         XCTAssertEqual(firstCallResult, expectedSiteID)
