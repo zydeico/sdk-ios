@@ -28,6 +28,7 @@ public final class CoreMethods: Sendable {
     private let generateTokenUseCase: GenerateCardTokenUseCaseProtocol
     private let identificationTypeUseCase: IdentificationTypesUseCaseProtocol
     private let installmentsUseCase: InstallmentsUseCaseProtocol
+    private let paymentMethodUseCase: PaymentMethodUseCaseProtocol
 
     typealias Dependency = HasAnalytics
 
@@ -41,6 +42,7 @@ public final class CoreMethods: Sendable {
         self.generateTokenUseCase = GenerateCardTokenUseCase()
         self.identificationTypeUseCase = IdentificationTypesUseCase()
         self.installmentsUseCase = InstallmentsUseCase()
+        self.paymentMethodUseCase = PaymentMethodUseCase()
         self.dependencies = CoreDependencyContainer.shared
     }
 
@@ -53,12 +55,14 @@ public final class CoreMethods: Sendable {
         dependencies: Dependency,
         generateTokenUseCase: GenerateCardTokenUseCaseProtocol,
         identificationTypeUseCase: IdentificationTypesUseCaseProtocol,
-        installmentsUseCase: InstallmentsUseCaseProtocol
+        installmentsUseCase: InstallmentsUseCaseProtocol,
+        paymentMethodUseCase: PaymentMethodUseCaseProtocol
     ) {
         self.dependencies = dependencies
         self.generateTokenUseCase = generateTokenUseCase
         self.identificationTypeUseCase = identificationTypeUseCase
         self.installmentsUseCase = installmentsUseCase
+        self.paymentMethodUseCase = paymentMethodUseCase
     }
 
     /// Creates a card token using the provided card details.
@@ -187,6 +191,48 @@ public final class CoreMethods: Sendable {
                     bin: bin,
                     amount: amount,
                     paymentType: result[0].paymentTypeId
+                )
+            }
+        )
+    }
+
+    /// Gets available payment methods for a card BIN
+    ///
+    /// Retrieves a list of payment methods available for a specified card BIN
+    /// (first 6-8 digits of the card number).
+    ///
+    /// - Parameters:
+    ///   - bin: Bank Identification Number (first 6-8 digits of card number)
+    ///   - mode: The processing mode to use (default: .aggregator)
+    ///
+    /// - Returns: An array of ``PaymentMethod`` objects containing available payment methods
+    ///
+    /// - Throws:
+    ///   - .invalidURL: If the API endpoint URL is malformed
+    ///   - .networkError: If a connection to the API cannot be established
+    ///   - .decodingFailed(Error): If the response cannot be decoded
+    ///
+    public func paymentMethods(
+        bin: String,
+        mode: ProcessingMode = .aggregator
+    ) async throws -> [PaymentMethod] {
+        let params = PaymentMethodsParams(bin: bin, processingMode: mode.rawValue)
+
+        return try await executeWithTracking(
+            operation: {
+                try await self.paymentMethodUseCase.getPaymentMethods(params: params)
+            },
+            path: "/sdk-native/core-methods/payment_methods",
+            extractEventData: { result -> PaymentMethodEventData? in
+                guard let data = result.first else {
+                    return PaymentMethodEventData()
+                }
+
+                return PaymentMethodEventData(
+                    issuer: data.issuer?.id,
+                    paymentType: data.paymentTypeId,
+                    sizeSecurityCode: data.card?.securityCode.length,
+                    cardBrand: data.id
                 )
             }
         )
