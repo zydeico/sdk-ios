@@ -10,13 +10,14 @@ import MPCore
 
 private enum Constants {
     static let baseURLToken = "https://api.mercadopago.com"
-    static let baseURLBricks = "https://api.mercadopago.com"
+    static let baseURLBricks = "https://api.mercadopago.com/cho-off/beta"
 }
 
 /// Endpoints
 enum CoreMethodsEndpoint {
     case postCardToken(body: CardTokenBody)
     case getIdentificationTypes
+    case getInstallments(params: InstallmentsParams)
 }
 
 /// Extension to conform to `RequestEndpoint`.
@@ -31,7 +32,7 @@ extension CoreMethodsEndpoint: RequestEndpoint {
         switch self {
         case .postCardToken:
             return Constants.baseURLToken
-        case .getIdentificationTypes:
+        default:
             return Constants.baseURLBricks
         }
     }
@@ -41,7 +42,7 @@ extension CoreMethodsEndpoint: RequestEndpoint {
         switch self {
         case .postCardToken:
             return .post
-        case .getIdentificationTypes:
+        case .getIdentificationTypes, .getInstallments:
             return .get
         }
     }
@@ -53,6 +54,8 @@ extension CoreMethodsEndpoint: RequestEndpoint {
             return "card_tokens"
         case .getIdentificationTypes:
             return "identification_types"
+        case .getInstallments:
+            return "installments"
         }
     }
 
@@ -66,6 +69,13 @@ extension CoreMethodsEndpoint: RequestEndpoint {
         switch self {
         case .postCardToken, .getIdentificationTypes:
             return [:]
+        case let .getInstallments(params):
+            return [
+                "bin": params.bin,
+                "amount": "\(params.amount)",
+                "product_id": MPSDKProduct.id,
+                "processing_mode": params.processingMode
+            ]
         }
     }
 

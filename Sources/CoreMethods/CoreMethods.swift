@@ -27,6 +27,7 @@ import MPCore
 public final class CoreMethods: Sendable {
     private let generateTokenUseCase: GenerateCardTokenUseCaseProtocol
     private let identificationTypeUseCase: IdentificationTypesUseCaseProtocol
+    private let installmentsUseCase: InstallmentsUseCaseProtocol
 
     typealias Dependency = HasAnalytics
 
@@ -39,6 +40,7 @@ public final class CoreMethods: Sendable {
     public init() {
         self.generateTokenUseCase = GenerateCardTokenUseCase()
         self.identificationTypeUseCase = IdentificationTypesUseCase()
+        self.installmentsUseCase = InstallmentsUseCase()
         self.dependencies = CoreDependencyContainer.shared
     }
 
@@ -50,11 +52,13 @@ public final class CoreMethods: Sendable {
     init(
         dependencies: Dependency,
         generateTokenUseCase: GenerateCardTokenUseCaseProtocol,
-        identificationTypeUseCase: IdentificationTypesUseCaseProtocol
+        identificationTypeUseCase: IdentificationTypesUseCaseProtocol,
+        installmentsUseCase: InstallmentsUseCaseProtocol
     ) {
         self.dependencies = dependencies
         self.generateTokenUseCase = generateTokenUseCase
         self.identificationTypeUseCase = identificationTypeUseCase
+        self.installmentsUseCase = installmentsUseCase
     }
 
     /// Creates a card token using the provided card details.
@@ -79,17 +83,17 @@ public final class CoreMethods: Sendable {
         expirationDate: ExpirationDateTextfield,
         securityCode: SecurityCodeTextField
     ) async throws -> CardToken {
-        let cardNumber = await cardNumber.input.getValue()
-        let expirationDateYear = await expirationDate.getYear()
-        let expirationDateMonth = await expirationDate.getMonth()
-        let securityCode = await securityCode.input.getValue()
+        async let cardNumber = cardNumber.input.getValue()
+        async let expirationDateYear = expirationDate.getYear()
+        async let expirationDateMonth = expirationDate.getMonth()
+        async let securityCode = securityCode.input.getValue()
 
         return try await self.generateTokenUseCase
             .tokenize(
-                cardNumber: cardNumber,
-                expirationDateMonth: expirationDateMonth,
-                expirationDateYear: expirationDateYear,
-                securityCodeInput: securityCode,
+                cardNumber: await cardNumber,
+                expirationDateMonth: await expirationDateMonth,
+                expirationDateYear: await expirationDateYear,
+                securityCodeInput: await securityCode,
                 cardID: nil
             )
     }
@@ -145,6 +149,46 @@ public final class CoreMethods: Sendable {
         return try await executeWithTracking(
             operation: { try await self.identificationTypeUseCase.getIdentificationTypes() },
             path: "/sdk-native/core-methods/identification_types"
+        )
+    }
+
+    /// Gets available installment options for a payment amount and card BIN
+    ///
+    /// Retrieves a list of installment plans available for a specified payment amount
+    /// and card BIN (first 6-8 digits of the card number). This allows merchants to
+    /// present financing options to customers during checkout.
+    ///
+    /// - Parameters:
+    ///   - amount: The payment amount to calculate installment options for
+    ///   - bin: Bank Identification Number (first 6-8 digits of card number)
+    ///   - mode: The processing mode to use (default: .agreggator)
+    ///
+    /// - Returns: An array of ``Installment`` objects containing available payment plans
+    ///
+    /// - Throws:
+    ///   - .invalidURL: If the API endpoint URL is malformed
+    ///   - .networkError: If a connection to the API cannot be established
+    ///   - .decodingFailed(Error): If the response cannot be decoded
+    ///
+    public func installments(
+        amount: Double,
+        bin: String,
+        mode: ProcessingMode = .aggregator
+    ) async throws -> [Installment] {
+        let params = InstallmentsParams(amount: amount, bin: bin, processingMode: mode.rawValue)
+
+        return try await executeWithTracking(
+            operation: { try await self.installmentsUseCase.getInstallments(params: params) },
+            path: "/sdk-native/core-methods/installments",
+            extractEventData: { result -> InstallmentEventData? in
+                guard !result.isEmpty else { return nil }
+
+                return InstallmentEventData(
+                    bin: bin,
+                    amount: amount,
+                    paymentType: result[0].paymentTypeId
+                )
+            }
         )
     }
 }
