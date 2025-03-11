@@ -9,22 +9,33 @@ import MPAnalytics
 
 package final class MockAnalytics: AnalyticsInterface {
     package actor Mock {
+        package var sendCallback: (() -> Void)?
+
         package enum Messages: Equatable {
             case initialize(version: String, siteID: String)
             case track(path: String)
             case setEventData([String: String])
             case send
             case trackView(_ path: String)
+            case setError(String)
         }
 
         var messages: [Messages] = []
 
         package func insert(_ message: Messages) {
             self.messages.append(message)
+
+            if message == .send {
+                self.sendCallback?()
+            }
         }
 
         package func getMessages() -> [Messages] {
             self.messages
+        }
+
+        package func updateSendCallback(_ callback: @escaping () -> Void) {
+            self.sendCallback = callback
         }
     }
 
@@ -52,6 +63,13 @@ package final class MockAnalytics: AnalyticsInterface {
     @discardableResult
     package func setEventData(_ data: AnalyticsEventData) async -> AnalyticsInterface {
         await self.mock.insert(.setEventData(data.toDictionary()))
+        return self
+    }
+
+    @discardableResult
+    package func setError(_ error: String) async -> AnalyticsInterface {
+        await self.mock.insert(.setError(error))
+
         return self
     }
 

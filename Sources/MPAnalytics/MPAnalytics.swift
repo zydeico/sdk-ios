@@ -36,6 +36,16 @@ package protocol AnalyticsEventData: Sendable, Encodable {
     func toDictionary() -> [String: String]
 }
 
+package extension AnalyticsEventData {
+    var isDevelopment: Bool {
+        #if DEBUG
+            return true
+        #else
+            return false
+        #endif
+    }
+}
+
 /// Defines the core analytics tracking functionality.
 ///
 /// This protocol provides methods for:
@@ -64,6 +74,13 @@ package protocol AnalyticsInterface: Sendable {
     /// - Returns: Self instance for method chaining.
     @discardableResult
     func setEventData(_ data: AnalyticsEventData) async -> AnalyticsInterface
+
+    /// Sets error in event data for the next event.
+    ///
+    /// - Parameter error: String of error
+    /// - Returns: Self instance for method chaining.
+    @discardableResult
+    func setError(_ error: String) async -> AnalyticsInterface
 
     /// Tracks a custom event.
     ///
@@ -114,7 +131,17 @@ package final class MPAnalytics: AnalyticsInterface {
         /// Type of the current tracking (event or view).
         private var type: TrackType = .event
 
-        func setEventData(_ data: AnalyticsEventData) {
+        private var error: String?
+
+        func setError(_ error: String?) {
+            self.error = error
+        }
+
+        func getError() -> String? {
+            return self.error
+        }
+
+        func setEventData(_ data: AnalyticsEventData?) {
             self.eventData = data
         }
 
@@ -164,6 +191,13 @@ package final class MPAnalytics: AnalyticsInterface {
     @discardableResult
     package func setEventData(_ data: AnalyticsEventData) async -> AnalyticsInterface {
         await self.track.setEventData(data)
+
+        return self
+    }
+
+    @discardableResult
+    package func setError(_ error: String) async -> AnalyticsInterface {
+        await self.track.setError(error)
 
         return self
     }
@@ -230,6 +264,8 @@ package final class MPAnalytics: AnalyticsInterface {
                 print("Tracking event:", jsonString)
             }
 
+            await self.track.setEventData(nil)
+
         } catch {
             print("Error converting to JSON:", error)
         }
@@ -243,10 +279,14 @@ private extension MPAnalytics {
     ///
     /// - Returns: Dictionary containing event data or an empty dictionary if no data is present.
     func getEventData() async -> [String: Any] {
-        guard let data = await track.getEventData() else {
-            return [:]
+        var eventData = await track.getEventData()?.toDictionary() ?? [:]
+
+        eventData["date"] = "\(Date())"
+
+        if let error = await track.getError() {
+            eventData["error"] = error
         }
 
-        return data.toDictionary()
+        return eventData
     }
 }
