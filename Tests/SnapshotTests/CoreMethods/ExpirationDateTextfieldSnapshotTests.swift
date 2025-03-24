@@ -5,6 +5,7 @@
 //  Created by Guilherme Prata Costa on 27/01/25.
 //
 
+import CommonTests
 @testable import CoreMethods
 import SnapshotTesting
 import XCTest
@@ -24,7 +25,9 @@ final class ExpirationDateTextfieldSnapshotTests: XCTestCase {
         file _: StaticString = #filePath,
         line _: UInt = #line
     ) -> SUT {
-        let sut = ExpirationDateTextfield(style: style)
+        let container = MockDependencyContainer()
+
+        let sut = ExpirationDateTextfield(style: style, dependencies: container)
         sut.frame = CGRect(x: 0, y: 0, width: 300, height: 56)
         sut.backgroundColor = .white
         sut.setPlaceholder("Insert security code")
@@ -127,7 +130,7 @@ final class ExpirationDateTextfieldSnapshotTests: XCTestCase {
     }
 
     func test_errorStateAppearance() async {
-        let (sut, input) = self.makeSUT(style: self.makeCustomStyle())
+        let (sut, _) = self.makeSUT(style: self.makeCustomStyle())
 
         sut.setStyle(self.makeErrorCustomStyle())
 

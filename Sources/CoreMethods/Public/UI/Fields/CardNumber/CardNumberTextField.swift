@@ -5,6 +5,7 @@
 //  Created by Guilherme Prata Costa on 14/11/24.
 //
 
+import MPAnalytics
 import MPCore
 import UIKit
 
@@ -52,6 +53,22 @@ public final class CardNumberTextField: PCITextField {
 
     private let binLength = 8
 
+    typealias Dependency = HasAnalytics
+
+    /// Internal property for dependency injection in tests
+    var dependencies: Dependency = CoreDependencyContainer.shared
+
+    var framework: FrameworkType = .uikit
+
+    var analyticsTask: Task<Void, Never>?
+
+    private var eventData: SecureFieldEventData {
+        SecureFieldEventData(
+            field: .cardNumber,
+            frameworkUI: self.framework
+        )
+    }
+
     // MARK: - Initialization
 
     public init(
@@ -59,6 +76,7 @@ public final class CardNumberTextField: PCITextField {
         maxLength: Int = 19,
         mask: String = "#### #### #### #######"
     ) {
+        self.dependencies = CoreDependencyContainer.shared
         self.validation = CardNumberValidation(maxLength: maxLength)
         let configuration = PCIFieldState.Configuration(
             maxLength: maxLength,
@@ -72,6 +90,27 @@ public final class CardNumberTextField: PCITextField {
         super.init(style: style, configuration: configuration, contentType: .creditCardNumber)
         buildLayout()
         self.setupCallbacks()
+        self.sendAnalyticsEvent()
+    }
+
+    /// Internal initializer for testing purposes
+    /// Allows injection of custom dependencies
+    ///
+    /// - Parameters:
+    ///   - style: The styling configuration for the text field
+    ///   - dependencies: Custom dependency container for testing
+    ///   - framework: UI framework type being used
+    convenience init(
+        style: Style = TextFieldDefaultStyle(),
+        maxLength: Int = 19,
+        mask: String = "#### #### #### #######",
+        dependencies: Dependency,
+        framework: FrameworkType = .uikit
+    ) {
+        self.init(style: style, maxLength: maxLength, mask: mask)
+
+        self.dependencies = dependencies
+        self.framework = framework
     }
 
     @available(*, unavailable)
@@ -79,7 +118,21 @@ public final class CardNumberTextField: PCITextField {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        analyticsTask?.cancel()
+    }
+
     // MARK: - Private Methods
+
+    private func sendAnalyticsEvent() {
+        self.analyticsTask = Task { [weak self] in
+            guard let self else { return }
+            await self.dependencies.analytics
+                .trackView("/sdk-native/core-methods/pci_field")
+                .setEventData(self.eventData)
+                .send()
+        }
+    }
 
     private func setupCallbacks() {
         self.input.onChange = { [weak self] text in
@@ -107,6 +160,16 @@ public final class CardNumberTextField: PCITextField {
 
         self.input.onFocusChange = { [weak self] focus in
             guard let self else { return }
+
+            if focus {
+                self.analyticsTask = Task { [weak self] in
+                    guard let self else { return }
+                    await self.dependencies.analytics
+                        .trackEvent("/sdk-native/core-methods/pci_field/focus")
+                        .setEventData(self.eventData)
+                        .send()
+                }
+            }
 
             let error = self.validation.error
             if !self.isValid, !focus {

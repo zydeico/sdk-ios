@@ -5,6 +5,7 @@
 //  Created by Guilherme Prata Costa on 27/01/25.
 //
 
+import MPAnalytics
 import MPCore
 import UIKit
 
@@ -67,6 +68,22 @@ public final class ExpirationDateTextfield: PCITextField {
 
     private var format: Format = .short
 
+    typealias Dependency = HasAnalytics
+
+    /// Internal property for dependency injection in tests
+    var dependencies: Dependency = CoreDependencyContainer.shared
+
+    var framework: FrameworkType = .uikit
+
+    var analyticsTask: Task<Void, Never>?
+
+    private var eventData: SecureFieldEventData {
+        SecureFieldEventData(
+            field: .expirationDate,
+            frameworkUI: self.framework
+        )
+    }
+
     // MARK: - Initialization
 
     public init(
@@ -95,11 +112,40 @@ public final class ExpirationDateTextfield: PCITextField {
             contentType: contentType
         )
         self.setupCallbacks()
+
+        self.sendAnalyticsLoadEvent()
+    }
+
+    convenience init(
+        style: Style = TextFieldDefaultStyle(),
+        dependencies: Dependency,
+        framework: FrameworkType = .uikit
+    ) {
+        self.init(style: style)
+
+        self.dependencies = dependencies
+        self.framework = framework
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        analyticsTask?.cancel()
+    }
+
+    // MARK: - Analytics
+
+    private func sendAnalyticsLoadEvent() {
+        self.analyticsTask = Task { [weak self] in
+            guard let self else { return }
+            await self.dependencies.analytics
+                .trackView("/sdk-native/core-methods/pci_field")
+                .setEventData(self.eventData)
+                .send()
+        }
     }
 
     // MARK: - Private Methods
@@ -123,6 +169,16 @@ public final class ExpirationDateTextfield: PCITextField {
 
         self.input.onFocusChange = { [weak self] focus in
             guard let self else { return }
+
+            if focus {
+                self.analyticsTask = Task { [weak self] in
+                    guard let self else { return }
+                    await self.dependencies.analytics
+                        .trackEvent("/sdk-native/core-methods/pci_field/focus")
+                        .setEventData(self.eventData)
+                        .send()
+                }
+            }
 
             if !self.isValid, !focus {
                 let error = self.validation.error

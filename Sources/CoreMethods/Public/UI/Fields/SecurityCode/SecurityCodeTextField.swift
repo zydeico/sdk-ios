@@ -5,6 +5,7 @@
 //  Created by Guilherme Prata Costa on 14/11/24.
 //
 
+import MPAnalytics
 import MPCore
 import UIKit
 
@@ -51,6 +52,22 @@ public final class SecurityCodeTextField: PCITextField {
 
     private let validation: SecurityCodeValidation
 
+    /// Internal property for dependency injection in tests
+    typealias Dependency = HasAnalytics
+
+    var dependencies: Dependency = CoreDependencyContainer.shared
+
+    var framework: FrameworkType = .uikit
+
+    private var eventData: SecureFieldEventData {
+        SecureFieldEventData(
+            field: .securityCode,
+            frameworkUI: self.framework
+        )
+    }
+
+    var analyticsTask: Task<Void, Never>?
+
     // MARK: - Initialization
 
     public init(
@@ -74,11 +91,44 @@ public final class SecurityCodeTextField: PCITextField {
         super.init(style: style, configuration: configuration, contentType: contentType)
         buildLayout()
         self.setupCallbacks()
+
+        self.sendAnalyticsEvent()
+    }
+
+    /// Internal initializer for testing purposes
+    /// Allows injection of custom dependencies
+    ///
+    /// - Parameters:
+    ///   - style: The styling configuration for the text field
+    ///   - maxLength: Maximum length for the security code
+    ///   - dependencies: Custom dependency container for testing
+    ///   - framework: UI framework type being used
+    convenience init(
+        style: Style = TextFieldDefaultStyle(),
+        maxLength: Int = 3,
+        dependencies: Dependency,
+        framework: FrameworkType = .uikit
+    ) {
+        self.init(style: style, maxLength: maxLength)
+
+        self.dependencies = dependencies
+        self.framework = framework
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    // MARK: - Analytics
+
+    private func sendAnalyticsEvent() {
+        self.analyticsTask = Task {
+            await self.dependencies.analytics
+                .trackView("/sdk-native/core-methods/pci_field")
+                .setEventData(self.eventData)
+                .send()
+        }
     }
 
     // MARK: - Private Methods
@@ -97,6 +147,16 @@ public final class SecurityCodeTextField: PCITextField {
 
         self.input.onFocusChange = { [weak self] focus in
             guard let self else { return }
+
+            if focus {
+                self.analyticsTask = Task { [weak self] in
+                    guard let self else { return }
+                    await self.dependencies.analytics
+                        .trackEvent("/sdk-native/core-methods/pci_field/focus")
+                        .setEventData(self.eventData)
+                        .send()
+                }
+            }
 
             let error = self.validation.error
             if !self.isValid, !focus {
