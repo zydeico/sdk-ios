@@ -5,7 +5,9 @@
 //  Created by Guilherme Prata Costa on 11/02/25.
 //
 
+@preconcurrency import DeviceFingerPrint
 import Foundation
+
 #if SWIFT_PACKAGE
     import MPAnalytics
 #endif
@@ -49,7 +51,7 @@ public final class MercadoPagoSDK: @unchecked Sendable {
     private(set) var configuration: Configuration?
     private(set) var analyticsMonitoringTask: Task<Void, Never>?
 
-    typealias Dependency = HasAnalytics
+    typealias Dependency = HasAnalytics & HasFingerPrint
 
     private let dependencies: Dependency
 
@@ -63,6 +65,7 @@ public final class MercadoPagoSDK: @unchecked Sendable {
     /// - Parameter configuration: SDK configuration options
     public func initialize(_ configuration: Configuration) {
         verifyCanBeInitialized(configuration)
+        self.dependencies.fingerPrint.execute()
 
         self.configuration = configuration
         self.isInitialized = true

@@ -24,7 +24,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "MPCore",
-            dependencies: ["MPAnalytics"]
+            dependencies: ["MPAnalytics", "DeviceFingerPrint"]
         ),
         .target(
             name: "CoreMethods",
@@ -32,6 +32,11 @@ let package = Package(
         ),
         .target(
             name: "MPAnalytics"
+        ),
+        
+        .binaryTarget(
+            name: "DeviceFingerPrint",
+            path: "Sources/Framework/DeviceFingerPrint.xcframework"
         ),
         
         //Tests

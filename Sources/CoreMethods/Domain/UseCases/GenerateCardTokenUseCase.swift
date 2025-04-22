@@ -5,6 +5,7 @@
 //  Created by Guilherme Prata Costa on 18/02/25.
 //
 
+@preconcurrency import DeviceFingerPrint
 import Foundation
 #if SWIFT_PACKAGE
     import MPCore
@@ -25,8 +26,13 @@ protocol GenerateCardTokenUseCaseProtocol: Sendable {
 final class GenerateCardTokenUseCase: GenerateCardTokenUseCaseProtocol {
     private let repository: CoreMethodsRepositoryProtocol
 
-    init(repository: CoreMethodsRepositoryProtocol = CoreMethodsRepository()) {
+    typealias Dependency = HasFingerPrint
+
+    let dependencies: Dependency
+
+    init(dependencies: Dependency, repository: CoreMethodsRepositoryProtocol = CoreMethodsRepository()) {
         self.repository = repository
+        self.dependencies = dependencies
     }
 
     func tokenize(
@@ -42,8 +48,14 @@ final class GenerateCardTokenUseCase: GenerateCardTokenUseCaseProtocol {
         var buyerIdentification: BuyerIdentification?
 
         if let identificationType, let identificationNumber, let cardHolderName {
-            buyerIdentification = BuyerIdentification(name: cardHolderName, number: identificationNumber, type: identificationNumber)
+            buyerIdentification = BuyerIdentification(
+                name: cardHolderName,
+                number: identificationNumber,
+                type: identificationType
+            )
         }
+
+        let deviceData = await dependencies.fingerPrint.getDeviceData()
 
         let cardData = CardTokenBody(
             cardNumber: cardNumber,
@@ -51,7 +63,8 @@ final class GenerateCardTokenUseCase: GenerateCardTokenUseCaseProtocol {
             expirationYear: expirationDateYear,
             securityCode: securityCodeInput,
             cardId: cardID,
-            buyerIdentification: buyerIdentification
+            buyerIdentification: buyerIdentification,
+            device: deviceData
         )
 
         let response = try await repository.generateCardToken(cardData)
