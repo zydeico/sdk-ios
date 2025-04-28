@@ -49,9 +49,9 @@ jobs:
       - run:
           name: Run Snapshot Tests
           command: bundle exec fastlane snapshot_tests
-
 workflows:
   version: 2
+
   build-test:
     jobs:
       - build-and-test
