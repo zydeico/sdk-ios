@@ -419,7 +419,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/tokenization"),
+                    .track(path: "/checkout_api_native/core_methods/tokenization"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -504,7 +504,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/tokenization"),
+                    .track(path: "/checkout_api_native/core_methods/tokenization"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -523,6 +523,10 @@ final class CoreMethodsTests: XCTestCase {
 
         await session.mock.setResponse(self.makeHTTPResponse(statusCode: 200))
         await session.mock.setData(IdentificationTypeStub.validResponse)
+        let docs = IdentificationTypeStub.expectedTypes.map { data in
+            data.name
+        }
+        let expectEventData = IdentificationTypeEventData(documentTypes: docs)
 
         // Act
         do {
@@ -541,7 +545,8 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/identification_types"),
+                    .track(path: "/checkout_api_native/core_methods/identification_types"),
+                    .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
             )
@@ -557,6 +562,7 @@ final class CoreMethodsTests: XCTestCase {
 
         await session.mock.setResponse(self.makeHTTPResponse(statusCode: 400))
         await session.mock.setData(APIErrorStub.badRequestData)
+        let expectEventData = IdentificationTypeEventData(documentTypes: [])
 
         // Act & Assert
         try await self.assertThrowsAPIError(
@@ -574,8 +580,9 @@ final class CoreMethodsTests: XCTestCase {
         XCTAssertEqual(
             messages,
             [
-                .track(path: "/choapi_sdk_native/core_methods/identification_types/error"),
+                .track(path: "/checkout_api_native/core_methods/identification_types/error"),
                 .setError("\(APIClientError.apiError(APIErrorStub.badRequest))"),
+                .setEventData(expectEventData.toDictionary()),
                 .send
             ]
         )
@@ -611,7 +618,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/installments"),
+                    .track(path: "/checkout_api_native/core_methods/installments"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -649,7 +656,7 @@ final class CoreMethodsTests: XCTestCase {
         XCTAssertEqual(
             messages,
             [
-                .track(path: "/choapi_sdk_native/core_methods/installments/error"),
+                .track(path: "/checkout_api_native/core_methods/installments/error"),
                 .setError("\(APIClientError.apiError(APIErrorStub.badRequest))"),
                 .setEventData(expectEventData.toDictionary()),
                 .send
@@ -694,7 +701,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/payment_methods"),
+                    .track(path: "/checkout_api_native/core_methods/payment_methods"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -729,7 +736,7 @@ final class CoreMethodsTests: XCTestCase {
         XCTAssertEqual(
             messages,
             [
-                .track(path: "/choapi_sdk_native/core_methods/payment_methods/error"),
+                .track(path: "/checkout_api_native/core_methods/payment_methods/error"),
                 .setError("\(APIClientError.apiError(APIErrorStub.badRequest))"),
                 .setEventData(expectEventData.toDictionary()),
                 .send
@@ -768,7 +775,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/payment_methods"),
+                    .track(path: "/checkout_api_native/core_methods/payment_methods"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -805,7 +812,7 @@ final class CoreMethodsTests: XCTestCase {
             XCTAssertEqual(
                 messages,
                 [
-                    .track(path: "/choapi_sdk_native/core_methods/issuers"),
+                    .track(path: "/checkout_api_native/core_methods/issuers"),
                     .setEventData(expectEventData.toDictionary()),
                     .send
                 ]
@@ -840,7 +847,7 @@ final class CoreMethodsTests: XCTestCase {
         XCTAssertEqual(
             messages,
             [
-                .track(path: "/choapi_sdk_native/core_methods/issuers/error"),
+                .track(path: "/checkout_api_native/core_methods/issuers/error"),
                 .setError("\(APIClientError.apiError(APIErrorStub.badRequest))"),
                 .setEventData(expectEventData.toDictionary()),
                 .send
