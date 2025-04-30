@@ -229,10 +229,21 @@ final class CardFormViewController: UIViewController {
 extension CardFormViewController {
     @objc private func handlePayButtonTapped() {
         Task {
+            guard let selectedDocumentType else {
+                return
+            }
+
+            // Change status of payment here
+            // https://www.mercadopago.com.br/developers/pt/docs/checkout-bricks/integration-test/test-payment-flow
+            let cardHolder = "APRO"
+
             let token = try await coreMethods.createToken(
                 cardNumber: self.cardNumberField,
                 expirationDate: self.expirationDateField,
-                securityCode: self.securityCodeField
+                securityCode: self.securityCodeField,
+                documentType: selectedDocumentType,
+                documentNumber: self.documentNumberField.text ?? "",
+                cardHolderName: cardHolder
             )
             let label = UILabel()
             label.numberOfLines = 0

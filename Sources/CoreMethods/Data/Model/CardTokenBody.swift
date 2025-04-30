@@ -14,7 +14,7 @@ struct CardTokenBody: Codable {
 
     var cardId: String? = nil
     var esc: String? = nil
-    var requireEsc = false
+    var requireEsc: Bool? = nil
     var buyerIdentification: BuyerIdentification? = nil
 
     var device: Data? = nil
@@ -27,21 +27,23 @@ extension CardTokenBody {
     func toJSONData() -> Data? {
         var jsonObject: [String: Any] = [
             "card_number": cardNumber as Any,
-            "expiration_month": expirationMonth ?? "",
-            "expiration_year": expirationYear ?? "",
-            "securityCode": securityCode,
+            "expiration_month": Double(expirationMonth ?? ""),
+            "expiration_year": Double(expirationYear ?? ""),
+            "security_code": securityCode,
             "card_id": cardId as Any,
             "esc": esc as Any,
             "require_esc": requireEsc
         ]
 
         if let buyerIdentification {
-            let buyerDict: [String: Any] = [
-                "name": buyerIdentification.name,
+            let holderDic: [String: Any] = [
                 "number": buyerIdentification.number,
                 "type": buyerIdentification.type
             ]
-            jsonObject["buyer_identification"] = buyerDict
+            jsonObject["cardholder"] = [
+                "identification": holderDic,
+                "name": buyerIdentification.name
+            ]
         }
 
         if let deviceData = device,
