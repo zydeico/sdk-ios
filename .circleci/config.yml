@@ -49,12 +49,46 @@ jobs:
       - run:
           name: Run Snapshot Tests
           command: bundle exec fastlane snapshot_tests
+
+  generate-doc:
+    executor: default
+    steps:
+      - checkout
+      - setup_environment
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:QCKwvoOSf76ROiASMPP0agO6EhQpXF8HFtX7x+pDvk0"
+      - run:
+          name: Configure Git for deployment
+          command: |
+            git config --global user.email "dev@mercadopago.com"
+            git config --global user.name "CI Build"
+      - run:
+          name: Generate documentation
+          command: ./scripts/generate-doc.sh
+      - run:
+          name: Deploy DocC to GitHub Pages
+          command: ./scripts/deploy-doc.sh
+
 workflows:
   version: 2
 
   build-test:
     jobs:
-      - build-and-test
+      - build-and-test:
+          filters:
+            branches:
+              ignore: main
       - snapshot-tests:
           requires:
             - build-and-test
+          filters:
+            branches:
+              ignore: main
+      - generate-doc:
+          filters:
+            branches:
+              only:
+                - main
+
+
