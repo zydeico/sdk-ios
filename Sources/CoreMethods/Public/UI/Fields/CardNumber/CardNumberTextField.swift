@@ -17,6 +17,11 @@ import UIKit
 ///
 /// Example usage:
 /// ```swift
+/// let style = TextFieldDefaultStyle()
+///    .borderColor(.systemGray)
+///    .borderWidth(2)
+///    .cornerRadius(8)
+///
 /// let field = CardNumberTextField(style: style)
 ///    .setMaxLength(19)
 ///    .setMask(pattern: "#### ##### ####")
@@ -24,9 +29,20 @@ import UIKit
 /// cardField.onBinChanged = { [weak self] bin in
 ///     // Handle BIN changes
 /// }
+///
+/// field.onLastFourDigitsFilled = { [weak self] lastFour in
+///     // Handle last four digits
+/// }
+///
+/// field.onFocusChanged = { [weak self] isFocus in
+///     // Handle focus changed
+/// }
+///
 /// cardField.onError = { [weak self] error in
 ///     // Handle validation errors
 /// }
+///
+/// field.setStyle(style) // Also you can change style this way
 /// ```
 public final class CardNumberTextField: PCITextField {
     /// Callback triggered when the BIN (Bank Identification Number) changes.
@@ -54,6 +70,8 @@ public final class CardNumberTextField: PCITextField {
     private let validation: CardNumberValidation
 
     private let binLength = 8
+    
+    private var previousBin: String = ""
 
     typealias Dependency = HasAnalytics
 
@@ -72,7 +90,12 @@ public final class CardNumberTextField: PCITextField {
     }
 
     // MARK: - Initialization
-
+    /// Initializer the textfield
+    ///
+    /// - Parameters:
+    ///   - style: The styling configuration for the text field
+    ///   - maxLength: Sets the maximum length of the card number
+    ///   - mask: Insert the mask pattern used for formatting the card number.
     public init(
         style: Style = TextFieldDefaultStyle(),
         maxLength: Int = 19,
@@ -139,9 +162,20 @@ public final class CardNumberTextField: PCITextField {
     private func setupCallbacks() {
         self.input.onChange = { [weak self] text in
             guard let self else { return }
+            
 
-            if self.count >= self.binLength || text.isEmpty {
-                self.onBinChanged?(self.getBin(text))
+            let inputLength = text.count
+            let currentBin = getBin(text)
+
+            let previousBinPrefix = self.previousBin
+
+            if inputLength >= self.binLength && currentBin != previousBinPrefix {
+                self.previousBin = currentBin
+                self.onBinChanged?(currentBin)
+            }
+
+            if inputLength < self.binLength && self.previousBin.count >= self.binLength {
+                self.previousBin = ""
             }
 
             if self.count == self.validation.maxLength, !self.isValid {

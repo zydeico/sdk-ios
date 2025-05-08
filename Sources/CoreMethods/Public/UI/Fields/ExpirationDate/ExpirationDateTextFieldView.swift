@@ -15,7 +15,11 @@ import SwiftUI
 /// to integrate seamlessly with your payment flow.
 ///
 /// ```swift
+///
+/// @State var expirationDateTextField: ExpirationDateTextfield?
+/// 
 /// ExpirationDateTextFieldView(
+///     textField: self.$expirationDateTextField,
 ///     style: myCustomStyle,
 ///     format: .short,
 ///     placeholder: "MM/YY",
@@ -214,7 +218,7 @@ public extension ExpirationDateTextFieldView {
     ///       .enabled(isCardPaymentSelected)
     ///   ```
     func enabled(_ isEnabled: Bool) -> ExpirationDateTextFieldView {
-        var view = self
+        let view = self
         view.isEnabled = isEnabled
         return view
     }

@@ -37,7 +37,9 @@ import Foundation
 /// }
 /// ```
 public final class CoreMethods: Sendable {
-    private let generateTokenUseCase: GenerateCardTokenUseCaseProtocol
+    
+    //MARK: Use Cases
+    internal let generateTokenUseCase: GenerateCardTokenUseCaseProtocol
     private let identificationTypeUseCase: IdentificationTypesUseCaseProtocol
     private let installmentsUseCase: InstallmentsUseCaseProtocol
     private let paymentMethodUseCase: PaymentMethodUseCaseProtocol
@@ -46,11 +48,13 @@ public final class CoreMethods: Sendable {
     typealias Dependency = HasAnalytics & HasFingerPrint
 
     let dependencies: Dependency
-
+    
+    // MARK: - Initialization
     /// Initializes a new instance of CoreMethods with default dependencies.
     ///
-    /// This initializer sets up the class with the standard implementation of the card token generation use case.
+    /// This initializer sets up the class with the standard implementation of core methods.
     /// Use this initializer for production code.
+    ///
     public init() {
         self.dependencies = CoreDependencyContainer.shared
         self.generateTokenUseCase = GenerateCardTokenUseCase(dependencies: self.dependencies)
@@ -80,7 +84,10 @@ public final class CoreMethods: Sendable {
         self.paymentMethodUseCase = paymentMethodUseCase
         self.issuerUseCase = issuerUseCase
     }
-
+    
+    
+    // MARK: Create Token
+    
     /// Creates a card token using the provided card details.
     ///
     /// This method processes the input from card-related text fields and generates
@@ -107,13 +114,13 @@ public final class CoreMethods: Sendable {
     ///   - cardNumber: A text field containing the card number
     ///   - expirationDate: A text field containing the card's expiration date in MM/YY format
     ///   - securityCode: A text field containing the card's security code (CVV)
+    ///   - cardHolderName: The full name of the cardholder as it appears on the card
     ///
     /// - Returns: A CardToken object containing the generated card token and related information
     ///
-    /// - Throws:
-    ///   - NetworkError: If communication with the API fails
-    ///   - ValidationError: If the provided card details are invalid
-    ///   - DecodingError: If the API response cannot be properly decoded
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
     ///
     /// - Note: This method performs asynchronous operations to retrieve values from the text fields
     ///         and to communicate with the Mercado Pago API
@@ -121,33 +128,23 @@ public final class CoreMethods: Sendable {
     public func createToken(
         cardNumber: CardNumberTextField,
         expirationDate: ExpirationDateTextfield,
-        securityCode: SecurityCodeTextField
+        securityCode: SecurityCodeTextField,
+        cardHolderName: String?
     ) async throws -> CardToken {
-        return try await executeWithTracking(
-            operation: {
-                async let cardNumber = cardNumber.input.getValue()
-                async let expirationDateYear = expirationDate.getYear()
-                async let expirationDateMonth = expirationDate.getMonth()
-                async let securityCode = securityCode.input.getValue()
-
-                return try await self.generateTokenUseCase
-                    .tokenize(
-                        cardNumber: cardNumber,
-                        expirationDateMonth: expirationDateMonth,
-                        expirationDateYear: expirationDateYear,
-                        securityCodeInput: securityCode,
-                        cardID: nil,
-                        cardHolderName: nil,
-                        identificationType: nil,
-                        identificationNumber: nil
-                    )
-            },
-            path: AnalyticsPath.tokenization,
-            extractEventData: { _ -> TokenizationEventData? in
-                return TokenizationEventData(isSaveCard: false, documentType: "")
-            }
+        async let cardNumber = cardNumber.input.getValue()
+        async let expirationDateYear = expirationDate.getYear()
+        async let expirationDateMonth = expirationDate.getMonth()
+        async let securityCode = securityCode.input.getValue()
+        
+        return try await tokenization(
+            cardNumber: cardNumber,
+            expirationDateMonth: expirationDateMonth,
+            expirationDateYear: expirationDateYear,
+            securityCode: securityCode,
+            cardHolderName: cardHolderName
         )
     }
+
 
     /// Creates a card token using the provided card details and cardholder information.
     ///
@@ -190,13 +187,13 @@ public final class CoreMethods: Sendable {
     ///
     /// - Returns: A CardToken object containing the generated card token and related information
     ///
-    /// - Throws:
-    ///   - NetworkError: If communication with the API fails
-    ///   - ValidationError: If the provided card or identification details are invalid
-    ///   - DecodingError: If the API response cannot be properly decoded
-    ///
     /// - Note: Different countries may require different types of identification documents.
     ///         Use the `identificationTypes()` method to retrieve the valid options.
+    ///
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
+    ///
     public func createToken(
         cardNumber: CardNumberTextField,
         expirationDate: ExpirationDateTextfield,
@@ -205,29 +202,19 @@ public final class CoreMethods: Sendable {
         documentNumber: String,
         cardHolderName: String
     ) async throws -> CardToken {
-        return try await executeWithTracking(
-            operation: {
-                async let cardNumber = cardNumber.input.getValue()
-                async let expirationDateYear = expirationDate.getYear()
-                async let expirationDateMonth = expirationDate.getMonth()
-                async let securityCode = securityCode.input.getValue()
-
-                return try await self.generateTokenUseCase
-                    .tokenize(
-                        cardNumber: cardNumber,
-                        expirationDateMonth: expirationDateMonth,
-                        expirationDateYear: expirationDateYear,
-                        securityCodeInput: securityCode,
-                        cardID: nil,
-                        cardHolderName: cardHolderName,
-                        identificationType: documentType.name,
-                        identificationNumber: documentNumber
-                    )
-            },
-            path: AnalyticsPath.tokenization,
-            extractEventData: { _ -> TokenizationEventData? in
-                return TokenizationEventData(isSaveCard: false, documentType: documentType.name)
-            }
+        async let cardNumber = cardNumber.input.getValue()
+        async let expirationDateYear = expirationDate.getYear()
+        async let expirationDateMonth = expirationDate.getMonth()
+        async let securityCode = securityCode.input.getValue()
+        
+        return try await tokenization(
+            cardNumber: cardNumber,
+            expirationDateMonth: expirationDateMonth,
+            expirationDateYear: expirationDateYear,
+            securityCode: securityCode,
+            cardHolderName: cardHolderName,
+            documentType: documentType.name,
+            documentNumber: documentNumber
         )
     }
 
@@ -260,55 +247,45 @@ public final class CoreMethods: Sendable {
     ///
     /// - Returns: A CardToken object containing the generated payment token and related information
     ///
-    /// - Throws:
-    ///   - NetworkError: If communication with the API fails
-    ///   - ValidationError: If the provided card ID or security code is invalid
-    ///   - DecodingError: If the API response cannot be properly decoded
-    ///
     /// - Important: The card must be previously saved in Mercado Pago's system. For new cards,
     ///             use one of the other `createToken` methods instead.
     ///
     /// - Note: The expirationDate parameter is optional and should only be provided if the
     ///         card's expiration date needed.
+    ///
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
+    ///
     public func createToken(
         cardID: String,
         expirationDate: ExpirationDateTextfield? = nil,
         securityCode: SecurityCodeTextField
     ) async throws -> CardToken {
-        return try await executeWithTracking(
-            operation: {
-                async let expirationDateYear = expirationDate?.getYear()
-                async let expirationDateMonth = expirationDate?.getMonth()
-                async let securityCode = securityCode.input.getValue()
-
-                return try await self.generateTokenUseCase
-                    .tokenize(
-                        cardNumber: nil,
-                        expirationDateMonth: expirationDateMonth,
-                        expirationDateYear: expirationDateYear,
-                        securityCodeInput: securityCode,
-                        cardID: cardID,
-                        cardHolderName: nil,
-                        identificationType: nil,
-                        identificationNumber: nil
-                    )
-            },
-            path: AnalyticsPath.tokenization,
-            extractEventData: { _ -> TokenizationEventData? in
-                return TokenizationEventData(isSaveCard: true, documentType: "")
-            }
+        async let expirationDateYear = expirationDate?.getYear()
+        async let expirationDateMonth = expirationDate?.getMonth()
+        async let securityCode = securityCode.input.getValue()
+        
+        return try await tokenization(
+            expirationDateMonth: expirationDateMonth,
+            expirationDateYear: expirationDateYear,
+            securityCode: securityCode,
+            cardID: cardID
         )
     }
 
-    /// Gets the identification document types accepted by the Mercado Pago API
+    // MARK: Identification Types
+    
+    /// Retrieves the list of identification document types supported by the Mercado Pago API.
     ///
-    /// - Returns: An array of ``IdentificationType`` objects representing the available
-    ///   document types for user identification
+    /// - Returns: An array of ``IdentificationType`` objects representing the supported
+    ///   document types for user identification.
     ///
-    /// - Throws:
-    ///   - .invalidURL: If the API endpoint URL is malformed
-    ///   - .decodingFailed(Error): If the response cannot be decoded
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
     ///
+    /// - Important: Document types are not available for Mexico.
     public func identificationTypes() async throws -> [IdentificationType] {
         return try await executeWithTracking(
             operation: { try await self.identificationTypeUseCase.getIdentificationTypes() },
@@ -322,6 +299,8 @@ public final class CoreMethods: Sendable {
             }
         )
     }
+    
+    // MARK: Installments
 
     /// Gets available installment options for a payment amount and card BIN
     ///
@@ -336,10 +315,9 @@ public final class CoreMethods: Sendable {
     ///
     /// - Returns: An array of ``Installment`` objects containing available payment plans
     ///
-    /// - Throws:
-    ///   - .invalidURL: If the API endpoint URL is malformed
-    ///   - .networkError: If a connection to the API cannot be established
-    ///   - .decodingFailed(Error): If the response cannot be decoded
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
     ///
     public func installments(
         amount: Double,
@@ -359,6 +337,8 @@ public final class CoreMethods: Sendable {
             }
         )
     }
+    
+    // MARK: Payment Methods
 
     /// Gets available payment methods for a card BIN
     ///
@@ -371,10 +351,9 @@ public final class CoreMethods: Sendable {
     ///
     /// - Returns: An array of ``PaymentMethod`` objects containing available payment methods
     ///
-    /// - Throws:
-    ///   - .invalidURL: If the API endpoint URL is malformed
-    ///   - .networkError: If a connection to the API cannot be established
-    ///   - .decodingFailed(Error): If the response cannot be decoded
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
     ///
     public func paymentMethods(
         bin: String,
@@ -401,6 +380,8 @@ public final class CoreMethods: Sendable {
             }
         )
     }
+    
+    // MARK: Issuers
 
     /// Gets available issuers for a card BIN and payment method
     ///
@@ -424,14 +405,14 @@ public final class CoreMethods: Sendable {
     ///
     /// - Parameters:
     ///   - bin: Bank Identification Number (first 6-8 digits of card number)
-    ///   - paymentMethodID: The ID of the payment method (e.g., "visa", "master")
+    ///   - paymentMethodID: The ID of the payment method (e.g., "visa", "master"), you can get this in paymentMethod function
     ///
     /// - Returns: An array of ``Issuer`` objects representing available card issuers
     ///
-    /// - Throws:
-    ///   - NetworkError: If communication with the API fails
-    ///   - ValidationError: If the provided bin or paymentMethodID is invalid
-    ///   - DecodingError: If the API response cannot be properly decoded
+    /// - Throws: ``APIClientError/invalidURL``: If the API endpoint URL is malformed.
+    /// - Throws: ``APIClientError/networkError(_:)``: If the response cannot be decoded.
+    /// - Throws: ``APIClientError/decodingFailed(_:)``: If the API response cannot be properly decoded
+    ///
     public func issuers(
         bin: String,
         paymentMethodID: String
@@ -458,10 +439,47 @@ public final class CoreMethods: Sendable {
     }
 }
 
-// MARK: Execute Operation of Core Methods
+// MARK: Tokenization Method
+internal extension CoreMethods {
+    func tokenization(
+        cardNumber: String? = nil,
+        expirationDateMonth: String? = nil,
+        expirationDateYear: String? = nil,
+        securityCode: String? = nil,
+        cardHolderName: String? = nil,
+        documentType: String? = nil,
+        documentNumber: String? = nil,
+        cardID: String? = nil
+    ) async throws -> CardToken {
+        return try await executeWithTracking(
+            operation: {
+                return try await self.generateTokenUseCase
+                    .tokenize(
+                        cardNumber: cardNumber,
+                        expirationDateMonth: expirationDateMonth,
+                        expirationDateYear: expirationDateYear,
+                        securityCodeInput: securityCode ?? "",
+                        cardID: cardID,
+                        cardHolderName: cardHolderName,
+                        identificationType: documentType,
+                        identificationNumber: documentNumber
+                    )
+            },
+            path: AnalyticsPath.tokenization,
+            extractEventData: { _ -> TokenizationEventData? in
+                return TokenizationEventData(
+                    isSaveCard: cardID != nil,
+                    documentType: documentType ?? ""
+                )
+            }
+        )
 
-private extension CoreMethods {
-    private enum AnalyticsPath {
+    }
+}
+
+// MARK: Execute Operation of Core Methods
+extension CoreMethods {
+    internal enum AnalyticsPath {
         static let identificationTypes = "/checkout_api_native/core_methods/identification_types"
         static let installments = "/checkout_api_native/core_methods/installments"
         static let paymentMethods = "/checkout_api_native/core_methods/payment_methods"
