@@ -69,11 +69,58 @@ jobs:
       - run:
           name: Deploy DocC to GitHub Pages
           command: ./scripts/deploy-doc.sh
+          
+  publish-release:
+    executor: default
+    environment:
+      GITHUB_TOKEN: ${GH_TOKEN}
+    steps:
+      - checkout
+      - setup_environment
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:QCKwvoOSf76ROiASMPP0agO6EhQpXF8HFtX7x+pDvk0"
+      - run:
+          name: Configure Git for GitHub access
+          command: |
+            git config --global user.email "dev@mercadopago.com"
+            git config --global user.name "CI Build"
+      - run:
+          name: Install GitHub CLI
+          command: |
+            brew install gh
+      - run:
+          name: Configure CocoaPods authentication
+          command: |
+            mkdir -p ~/.cocoapods
+            echo "machine trunk.cocoapods.org" > ~/.netrc
+            echo "  login $COCOAPODS_TRUNK_TOKEN" >> ~/.netrc
+            echo "  password $COCOAPODS_TRUNK_TOKEN" >> ~/.netrc
+            chmod 0600 ~/.netrc
+      - run:
+          name: Check if new version needs to be published
+          command: |
+            # Get current version from VERSION file
+            CURRENT_VERSION=$(cat VERSION)
+            echo "Current version in VERSION file: $CURRENT_VERSION"
+            
+            # Get the latest git tag
+            git fetch --tags
+            LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
+            echo "Latest git tag: $LATEST_TAG"
+            
+            if [ "$CURRENT_VERSION" == "$LATEST_TAG" ]; then
+              echo "Version $CURRENT_VERSION is already published. Skipping publication."
+              exit 0
+            else
+              echo "New version detected: $CURRENT_VERSION. Publishing..."
+              ./scripts/publish-release.sh
+            fi
 
 workflows:
   version: 2
 
-  build-test:
+  main-workflow:
     jobs:
       - build-and-test:
           filters:
@@ -90,5 +137,11 @@ workflows:
             branches:
               only:
                 - main
+      - publish-release:
+          filters:
+            branches:
+              only:
+                - main
+
 
 
