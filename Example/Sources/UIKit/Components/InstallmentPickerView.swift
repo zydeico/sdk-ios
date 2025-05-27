@@ -35,7 +35,7 @@ class InstallmentPickerView: UIView {
         textField.textAlignment = .left
         textField.font = UIFont.systemFont(ofSize: 16)
         textField.layer.borderWidth = 2
-        textField.layer.borderColor = UIColor.systemGray.cgColor
+        textField.layer.borderColor = UIColor.systemGray4.cgColor
         textField.layer.cornerRadius = 8
 
         // Add left padding
@@ -134,6 +134,23 @@ class InstallmentPickerView: UIView {
     func updateInstallments(_ installments: [Installment]) {
         self.installments = installments
         self.setupPayerCosts()
+    }
+    
+    /// Update installments directly with PayerCosts (for ViewModel integration)
+    func updatePayerCosts(_ payerCosts: [Installment.PayerCost]) {
+        self.flattenedPayerCosts = payerCosts.sorted { $0.installments < $1.installments }
+        
+        // Set default selected option to 1 installment if available
+        selectedPayerCost = self.flattenedPayerCosts.first { $0.installments == 1 } ?? self.flattenedPayerCosts.first
+
+        self.installmentPicker.reloadAllComponents()
+
+        // Set initial selection and update textfield
+        if let selectedPayerCost,
+           let index = flattenedPayerCosts.firstIndex(where: { $0.installments == selectedPayerCost.installments }) {
+            self.installmentPicker.selectRow(index, inComponent: 0, animated: false)
+            self.updateTextFieldValue()
+        }
     }
 
     /// Select a specific payer cost programmatically
