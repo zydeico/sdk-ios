@@ -39,7 +39,7 @@ platform :ios do
   desc "Record Snapshot Tests"
   lane :record_snapshots do
     scan(
-      scheme: "MercadoPagoSDK",
+      scheme: "MercadoPagoSDK-Package",
       package_path: ".",
       destination: "platform=iOS Simulator,name=iPhone 16",
       only_testing: ["SnapshotTests"],
