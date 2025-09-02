@@ -67,7 +67,7 @@ let package = Package(
         
         .target(
             name: "MPApplePay",
-            dependencies: ["MPCore"]
+            dependencies: ["MPCore", "DeviceFingerPrint"]
         ),
         
         
