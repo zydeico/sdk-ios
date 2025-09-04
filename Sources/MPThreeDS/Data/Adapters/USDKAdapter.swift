@@ -9,7 +9,6 @@ import Foundation
 @preconcurrency import uSDK
 
 final class USDKAdapter: ThreeDSSDKProtocol {
-    
     func initialize(
         config: ThreeDSConfig,
         locale: String,
@@ -35,6 +34,18 @@ final class USDKAdapter: ThreeDSSDKProtocol {
         }
         return UTransactionAdapter(transaction: transaction)
     }
+    
+    func getWarnings() -> [MPThreeDSWarning] {
+        let warnings = UThreeDS2ServiceImpl.shared().getWarnings()?.map { warning in
+            return MPThreeDSWarning(
+                id: warning.getID(),
+                message: warning.getMessage(),
+                severity: MPThreeDSWarning.Severity(rawValue: warning.getSeverity().rawValue) ?? .none
+            )
+        }
+        
+        return warnings ?? []
+    }
 }
 
 // MARK: - Adapter for UTransaction
@@ -49,12 +60,16 @@ final class UTransactionAdapter: ThreeDSTransactionProtocol {
         return transaction.description
     }
     
-    func getAuthenticationRequestParameters() -> ThreeDSAuthRequestParameters? {
+    func close() throws {
+        try transaction.close()
+    }
+    
+    func getAuthenticationRequestParameters() -> MPThreeDSAuthRequestParameters? {
         guard let params = transaction.getAuthenticationRequestParameters() else {
             return nil
         }
         
-        return ThreeDSAuthRequestParameters(
+        return .init(
             sdkAppId: params.getSDKAppID(),
             deviceData: params.getDeviceData(),
             sdkEphemeralPublicKey: params.getSDKEphemeralPublicKey(),
@@ -65,14 +80,14 @@ final class UTransactionAdapter: ThreeDSTransactionProtocol {
     
     func doChallenge(
         _ navigationController: UINavigationController,
-        challengeParameters: ThreeDSChallengeParameters,
+        challengeParameters: MPThreeDSParameters.MPThreeDSChallengeParameters,
         challengeStatusReceiver: ThreeDSChallengeStatusReceiver,
         timeOut: Int32
     ) {
         let uChallengeParams = UChallengeParameters(
-            threeDSServerTransactionID: challengeParameters.threeDSServerTransactionID,
-            acsTransactionID: challengeParameters.acsTransactionID,
-            acsRefNumber: challengeParameters.acsRefNumber,
+            threeDSServerTransactionID: challengeParameters.threeDSServerTransID,
+            acsTransactionID: challengeParameters.acsTransID,
+            acsRefNumber: challengeParameters.acsReferenceNumber,
             acsSignedContent: challengeParameters.acsSignedContent
         )
         

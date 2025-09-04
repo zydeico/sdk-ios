@@ -6,20 +6,22 @@
 //
 
 import UIKit
-@_exported import uSDK
+import uSDK
 
-public protocol ThreeDSTransactionProtocol: Sendable {
+protocol ThreeDSTransactionProtocol: Sendable {
     var id: String { get }
-    func getAuthenticationRequestParameters() -> ThreeDSAuthRequestParameters?
+    func getAuthenticationRequestParameters() -> MPThreeDSAuthRequestParameters?
     func doChallenge(
         _ navigationController: UINavigationController,
-        challengeParameters: ThreeDSChallengeParameters,
+        challengeParameters: MPThreeDSParameters.MPThreeDSChallengeParameters,
         challengeStatusReceiver: ThreeDSChallengeStatusReceiver,
         timeOut: Int32
     )
+    
+    func close() throws
 }
 
-public protocol ThreeDSSDKProtocol {
+protocol ThreeDSSDKProtocol {
     func initialize(
         config: ThreeDSConfig,
         locale: String,
@@ -30,9 +32,11 @@ public protocol ThreeDSSDKProtocol {
         directoryServerId: String,
         messageVersion: String
     ) -> ThreeDSTransactionProtocol?
+    
+    func getWarnings() -> [MPThreeDSWarning]    
 }
 
-public protocol ThreeDSChallengeStatusReceiver: AnyObject {
+protocol ThreeDSChallengeStatusReceiver: AnyObject {
     func completed(transactionStatus: String, transactionId: String)
     func cancelled()
     func timedout()
@@ -47,18 +51,3 @@ public struct ThreeDSConfig {
         self.customization = customization
     }
 }
-
-public struct ThreeDSAuthRequestParameters {
-    public let sdkAppId: String
-    public let deviceData: String
-    public let sdkEphemeralPublicKey: String
-    public let sdkReferenceNumber: String
-    public let sdkTransactionId: String
-}
-
-public struct ThreeDSChallengeParameters {
-    public let threeDSServerTransactionID: String
-    public let acsTransactionID: String
-    public let acsRefNumber: String
-    public let acsSignedContent: String
-} 

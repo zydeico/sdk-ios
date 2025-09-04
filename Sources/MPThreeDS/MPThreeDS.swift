@@ -7,24 +7,6 @@
 import MPCore
 import UIKit
 
-/// Errors that can occur during the 3D Secure authentication process.
-///
-/// This enum defines all possible errors that can be returned during the 3DS authentication flow.
-public enum MPThreeDSError: Error {
-    /// No directory server is available for the specified payment method.
-    case noDirectoryServerAvailable
-    
-    /// Failed to create a 3DS transaction.
-    case transaction
-    
-    /// Failed to obtain authentication request parameters.
-    case authenticationRequestParameters
-    
-    /// Error during the authentication process.
-    /// - Parameter message: Detailed error message.
-    case authentication(message: String)
-}
-
 /// Main class for 3D Secure authentication.
 ///
 /// `MPThreeDS` provides a simplified interface for implementing 3D Secure authentication in iOS applications.
@@ -41,25 +23,46 @@ public enum MPThreeDSError: Error {
 /// ```swift
 /// // Basic initialization
 /// let threeDS = MPThreeDS()
-/// threeDS.challengeDelegate = self
 ///
 /// // With custom configuration
 /// let customization = UUiCustomization()
 /// let config = ThreeDSConfig(customization: customization)
 /// let threeDS = MPThreeDS(config: config)
 ///
-/// // Requesting authentication
 /// do {
-///     let result = try await threeDS.requestChallenge(
-///         cardtoken: "card_token",
+///     // Get authentication parameters
+///     var authData = try threeDS.getAuthenticationRequestParameters(
 ///         paymentMethodId: "visa"
 ///     )
 ///     
-///     if result.status == .challenge {
-///         await threeDS.startChallenge(
+///     // Send authData.parameters to your backend for challenge verification
+///     // If backend returns challenge parameters, start the challenge:
+///     if let challengeParams = challengeParametersFromBackend {
+///         authData.challengeParameters = challengeParams
+///         
+///         let result = await threeDS.startChallenge(
 ///             from: navigationController,
-///             data: result
+///             data: authData
 ///         )
+///         
+///         switch result {
+///         case .completed(let status, let transactionId):
+///             if status == "Y" {
+///                 // Authentication successful - proceed with payment
+///                 proceedWithPayment(transactionId: transactionId)
+///             } else {
+///                 // Authentication failed or declined
+///                 handleAuthenticationFailure(status: status)
+///             }
+///         case .cancelled:
+///             showMessage("Authentication was cancelled")
+///         case .timedout:
+///             showMessage("Authentication timed out")
+///         case .protocolError(_, let error):
+///             handleError(error)
+///         case .runtimeError(let error):
+///             handleError(error)
+///         }
 ///     }
 /// } catch {
 ///     print("Authentication error: \(error)")
@@ -69,14 +72,20 @@ public enum MPThreeDSError: Error {
 public class MPThreeDS: NSObject {
 
     private let messageVersion = "2.2.0"
-    private let useCase = ThreeDSUseCase()
     private let threeDSSDK: ThreeDSSDKProtocol
+    
+    internal var parameters: MPThreeDSParameters?
     
     /// Delegate to receive callbacks from the challenge process.
     ///
     /// Configure this delegate to receive notifications about the 3DS challenge result.
     /// The delegate will be called when the challenge is completed, cancelled, times out, or fails.
+    /// 
+    /// - Note: This delegate is also called when using the async/await API for backward compatibility.
     public weak var challengeDelegate: MPThreeDSChallengeDelegate?
+    
+    /// Internal continuation for async/await support.
+    internal var challengeContinuation: CheckedContinuation<MPThreeDSChallengeResult, Never>?
     
     /// Initializes a new instance of MPThreeDS.
     ///
@@ -112,55 +121,52 @@ public class MPThreeDS: NSObject {
         }
     }
     
-    /// Requests 3D Secure authentication for a specific card.
+    /// Returns security warnings generated during 3DS SDK initialization.
     ///
-    /// This method initiates the 3DS authentication process, collecting device information
-    /// and communicating with the 3DS server to determine if a challenge is required.
+    /// The 3DS SDK performs several security checks during initialization time to assess
+    /// the safety of the mobile device environment. These checks may produce warnings
+    /// that help determine whether it's safe to initiate 3D Secure authentication.
+    ///
+    /// - Returns: Array of ``MPThreeDSWarning`` objects containing security warning details.
+    ///
+    public func getWarnings() -> [MPThreeDSWarning] {
+        return threeDSSDK.getWarnings()
+    }
+    
+    /// Requests 3D Secure authentication parameters for a specific payment method.
+    ///
+    /// This method initiates the 3DS authentication process by collecting device information
+    /// and generating the necessary parameters that should be sent to your backend for
+    /// challenge verification.
     ///
     /// - Parameters:
-    ///   - cardtoken: Card token for authentication.
     ///   - paymentMethodId: Payment method ID (e.g., "visa", "master", "amex").
     ///
-    /// - Returns: ``MPThreeDSAuthenticated`` containing the authentication status and challenge parameters.
+    /// - Returns: ``MPThreeDSParameters`` containing authentication parameters and transaction reference.
     ///
     /// - Throws: ``MPThreeDSError`` if any error occurs during the process.
     ///
     /// ## Example
     /// ```swift
     /// do {
-    ///     let result = try await threeDS.requestChallenge(
-    ///         cardtoken: "mp_token_123456",
-    ///         paymentMethodId: "visa"
-    ///     )
-    ///     
-    ///     switch result.status {
-    ///     case .challenge:
-    ///         // Challenge required - call startChallenge()
-    ///         await startChallenge(from: navigationController, data: result)
-    ///     case .notAuthorized:
-    ///         // Authentication completed without challenge
-    ///         print("Authentication completed")
-    ///     }
+    ///     let authData = try threeDS.requestParameters(paymentMethodId: "visa")
+    ///     // Send authData.parameters to your backend
     /// } catch MPThreeDSError.noDirectoryServerAvailable {
-    ///     print("Payment method does not support 3DS")
+    ///     print("Payment method not supported for 3DS")
     /// } catch {
-    ///     print("Authentication error: \(error)")
+    ///     print("3DS authentication failed: \(error)")
     /// }
     /// ```
-    public func requestChallenge(
-        cardtoken: String,
+    public func requestParameters(
         paymentMethodId: String
-    ) async throws(MPThreeDSError) -> MPThreeDSAuthenticated {
-        /**
-         Gets the Directory Server from the selected Payment Method ID
-         */
+    ) throws(MPThreeDSError) -> MPThreeDSParameters {
+        
+        /// Gets the Directory Server from the selected Payment Method ID
         guard let directoryServer = MPThreeDSDirectoryServer(rawValue: paymentMethodId) else {
             throw .noDirectoryServerAvailable
         }
 
-        /**
-         Creates an instance of Transaction. 3DS Requestor App gets the data that is required to perform the transaction.
-         */
+        /// Creates an instance of Transaction. 3DS Requestor App gets the data that is required to perform the transaction.
         guard let transaction = threeDSSDK.createTransaction(
             directoryServerId: directoryServer.id,
             messageVersion: messageVersion
@@ -168,117 +174,110 @@ public class MPThreeDS: NSObject {
             throw .transaction
         }
 
-        /**
-         When the 3DS Requestor App calls this method, the 3DS SDK encrypts the
-         device information that it collects during initialization and sends this information along with the SDK information to
-         the 3DS Requestor App.
-         */
+        /// When the 3DS Requestor App calls this method, the 3DS SDK encrypts the
+        /// device information that it collects during initialization and sends this information along with the SDK information to
+        /// the 3DS Requestor App.
         guard let authenticationRequestParameters = transaction.getAuthenticationRequestParameters() else {
             throw .authenticationRequestParameters
         }
         
-        do {
-            return try await useCase.authenticatedThreeDS(
-                transaction: transaction,
-                token: cardtoken,
-                authenticationParams: authenticationRequestParameters
-            )
-            
-        } catch {
-            throw .authentication(message: error.localizedDescription)
-        }
+        let warnings = getWarnings()
+        
+        let createParameters: MPThreeDSParameters = .init(
+            authenticationRequestParameters: authenticationRequestParameters,
+            warnings: warnings,
+            transaction: transaction
+        )
+        
+        parameters = createParameters
+        
+        return createParameters
     }
     
-    /// Starts the 3D Secure challenge by presenting the interface to the user.
+    /// Starts the 3D Secure challenge and returns the result asynchronously.
     ///
-    /// This method should be called when ``requestChallenge(cardtoken:paymentMethodId:)`` 
-    /// returns a status of `.challenge`. It presents the 3DS authentication interface to the user.
+    /// This method should be called when your backend determines that a challenge is required
+    /// and returns challenge parameters. It presents the 3DS authentication interface to the user
+    /// and returns the authentication result.
     ///
     /// - Parameters:
     ///   - navigationController: Navigation controller to present the challenge interface.
-    ///   - data: Authentication data returned by ``requestChallenge(cardtoken:paymentMethodId:)``.
+    ///   - data: Authentication data returned by ``getAuthenticationRequestParameters(paymentMethodId:)``.
+    ///   - timeOut: Challenge timeout in seconds. Default is 20 seconds.
+    ///
+    /// - Returns: ``MPThreeDSChallengeResult`` containing the authentication outcome.
     ///
     /// - Important: This method must be called on the main thread.
-    /// - Note: Configure ``challengeDelegate`` before calling this method to receive result callbacks.
     ///
     /// ## Example
     /// ```swift
-    /// // Configure the delegate first
-    /// threeDS.challengeDelegate = self
+    /// do {
+    ///     var authData = try threeDS.requestParameters(paymentMethodId: "visa")
     ///
-    /// // Start the challenge
-    /// await threeDS.startChallenge(
-    ///     from: self.navigationController!,
-    ///     data: authenticationResult
-    /// )
+    ///     let challengeParametersFromBackend = requestServer(authData.authenticationRequestParameters)
     ///
-    /// // The result will be reported via delegate:
-    /// extension MyViewController: MPThreeDSChallengeDelegate {
-    ///     func completed(transactionStatus: String, transactionId: String) {
-    ///         print("Challenge completed: \(transactionStatus)")
+    ///     authData.challengeParameters = challengeParametersFromBackend
+    ///     
+    ///     let result = await threeDS.startChallenge(
+    ///         from: navigationController,
+    ///         data: authData
+    ///     )
+    ///     
+    ///     switch result {
+    ///     case .completed(let status, let transactionId):
+    ///         if status == "Y" {
+    ///             // Authentication successful
+    ///             proceedWithPayment(transactionId: transactionId)
+    ///         } else {
+    ///             handleAuthenticationFailure(status: status)
+    ///         }
+    ///     case .cancelled:
+    ///         showMessage("Authentication was cancelled")
+    ///     case .timedout:
+    ///         showMessage("Authentication timed out")
+    ///     case .protocolError(let transactionId, let error):
+    ///         handleProtocolError(error, transactionId: transactionId)
+    ///     case .runtimeError(let error):
+    ///         handleRuntimeError(error)
     ///     }
+    /// } catch {
+    ///     handleError(error)
     /// }
     /// ```
     @MainActor
     public func startChallenge(
         from navigationController: UINavigationController,
-        data: MPThreeDSAuthenticated
-    ) async {
-        let challengeParams = ThreeDSChallengeParameters(
-            threeDSServerTransactionID: data.parameters.threeDSServerTransID,
-            acsTransactionID: data.parameters.acsTransID,
-            acsRefNumber: data.parameters.acsReferenceNumber,
-            acsSignedContent: data.parameters.acsSignedContent
-        )
+        parameters: MPThreeDSParameters,
+        timeOut: Int32 = 20
+    ) async -> MPThreeDSChallengeResult {
+        guard let challengeParameters = parameters.challengeParameters else {
+            return .runtimeError(error: MPThreeDSChallengeError(
+                code: "MISSING_CHALLENGE_PARAMS",
+                errorType: .runtimeError,
+                message: "Challenge parameters are required but missing",
+                detail: "Ensure challengeParameters is set on MPThreeDSAuthenticated before calling startChallenge"
+            ))
+        }
         
-        data.transaction.doChallenge(
-            navigationController,
-            challengeParameters: challengeParams,
-            challengeStatusReceiver: self,
-            timeOut: 20
-        )
+        return await withCheckedContinuation { continuation in
+            self.challengeContinuation = continuation
+            
+            parameters.transaction.doChallenge(
+                navigationController,
+                challengeParameters: challengeParameters,
+                challengeStatusReceiver: self,
+                timeOut: timeOut
+            )
+        }
     }
-}
-
-extension MPThreeDS: ThreeDSChallengeStatusReceiver {
-
-    public func completed(transactionStatus: String, transactionId: String) {
-        challengeDelegate?.completed(
-            transactionStatus: transactionStatus,
-            transactionId: transactionId
-        )
-    }
-
-    public func cancelled() {
-        challengeDelegate?.cancelled()
-    }
-
-    public func timedout() {
-        challengeDelegate?.timedout()
-    }
-
-    public func protocolError(transactionId: String, code: String, message: String, detail: String?) {
-        let challengeError = MPThreeDSChallengeError(
-            code: code,
-            errorType: .protocolError,
-            message: message,
-            detail: detail
-        )
-        
-        challengeDelegate?.protocolError?(
-            transactionId: transactionId,
-            error: challengeError
-        )
-    }
-
-    public func runtimeError(code: String, message: String) {
-        let error = MPThreeDSChallengeError(
-            code: code,
-            errorType: .runtimeError,
-            message: message,
-            detail: nil
-        )
-        
-        challengeDelegate?.runtimeError?(error: error)
+    
+    /// The close method is called to clean up resources that are held by the Transaction object. It shall be called when the transaction is completed. The following are some examples of transaction completion events:
+    ///
+    /// - The Cardholder completes the challenge.
+    /// - An error occurs
+    /// - The Cardholder chooses to cancel the transaction.
+    /// - The ACS recommends a challenge, but the Merchant overrides the recommendation and chooses to complete the transaction without a challenge
+    public func close() throws {
+        try parameters?.transaction.close()
     }
 }
