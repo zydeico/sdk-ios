@@ -9,6 +9,7 @@ platform :ios do
       scheme: "MercadoPagoSDK",
       package_path: ".",
       only_testing: ["CoreMethodsTests" , "AnalyticsTests", "MPCoreTests", "MPApplePayTests"],
+      skip_testing: ["SnapshotTests"],
       destination: "platform=iOS Simulator,name=iPhone 16",
       result_bundle: true,
       code_coverage: true,
@@ -19,7 +20,8 @@ platform :ios do
     xcov(
       is_swift_package: true,
       output_directory: "fastlane/xcov_output",
-      minimum_coverage_percentage: 80.0
+      minimum_coverage_percentage: 80.0,
+      exclude_targets: "SnapshotTests"
     )
   end
 
